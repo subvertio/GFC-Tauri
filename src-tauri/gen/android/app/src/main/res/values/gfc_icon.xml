@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Made by scripts\icons.ps1 (the GFC app icon's background) -->
+<resources>
+    <color name="gfc_icon_background">#02040F</color>
+</resources>
