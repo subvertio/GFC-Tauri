@@ -89,11 +89,26 @@ registerScreen("post", (route, page) => {
     update();
   };
 
-  const pick = async (kind: "media" | "file") => {
+  // Windows' file dialog takes about half a second to appear (it lists the folder first),
+  // so the button says so at once, and a second click can't queue a second dialog.
+  const pick = async (kind: "media" | "file", btn?: HTMLButtonElement) => {
     if (!inTauri) return toast("Picking files needs the desktop app.", true);
     if (uploading) return toast("Wait for the current upload to finish, or cancel it.");
-    const p = await invoke<Picked | null>("pick_file", { kind });
-    if (p) await usePicked(p);
+    if (btn?.disabled) return;
+    const label = btn?.textContent ?? "";
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Opening…";
+    }
+    try {
+      const p = await invoke<Picked | null>("pick_file", { kind });
+      if (p) await usePicked(p);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    }
   };
 
   const usePicked = async (p: Picked) => {
@@ -234,8 +249,8 @@ registerScreen("post", (route, page) => {
       h("label", "Text"), text,
       h("p.muted.small", "Add to your post (optional)."),
       h("div.row.wrap",
-        h("button.btn.secondary.small", { onclick: () => pick("media") }, "⊕ Photo or video"),
-        h("button.btn.secondary.small", { onclick: () => pick("file") }, "✧ 3D model, audio or other file")),
+        h("button.btn.secondary.small", { onclick: (ev: MouseEvent) => pick("media", ev.currentTarget as HTMLButtonElement) }, "⊕ Photo or video"),
+        h("button.btn.secondary.small", { onclick: (ev: MouseEvent) => pick("file", ev.currentTarget as HTMLButtonElement) }, "✧ 3D model, audio or other file")),
       h("div", { style: "margin-top:12px" }, mediaPanel),
       h("div.box", { style: "margin-top:16px" },
         h("label.check", exclusive, h("span.gold", { style: "font-weight:700" }, "Exclusive to GFC Network")),
