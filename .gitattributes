@@ -1,0 +1,2 @@
+src-tauri/gen/android/gradlew text eol=lf
+*.sh text eol=lf
