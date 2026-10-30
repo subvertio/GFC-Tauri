@@ -26,9 +26,21 @@ futures-util = { version = "0.3", default-features = false }
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", default-features = false, features = ["windows-native"] }
 
+[target.'cfg(target_os = "android")'.dependencies]
+keyring-core = "1"
+android-native-keyring-store = "1"
+
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# Dev builds keep line numbers for backtraces but not full debug info: much smaller Android
+# debug APKs (and faster installs over adb)
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

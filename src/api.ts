@@ -10,6 +10,7 @@ export const SHARE_BASE = "https://node.galacticfederation.tech";
 export const REQUEST_TIMEOUT_MS = 30_000;
 
 export const inTauri = "__TAURI_INTERNALS__" in window;
+export const isAndroid = /Android/i.test(navigator.userAgent);
 const doFetch: typeof fetch = inTauri ? (tauriFetch as typeof fetch) : window.fetch.bind(window);
 
 export class ApiError extends Error {

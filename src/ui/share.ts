@@ -5,7 +5,7 @@
 // Notes composer opens.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api, inTauri, type UploadResult } from "../api";
+import { api, inTauri, isAndroid, type UploadResult } from "../api";
 import { copyText, openExternal } from "./actions";
 
 export type ShareTarget = "x" | "linkedin" | "substack";
@@ -43,6 +43,20 @@ export async function saveTeaser(res: UploadResult): Promise<string> {
 /** Share to every chosen target. Returns one short note per target, for the post screen. */
 export async function shareTo(res: UploadResult, targets: ShareTarget[]): Promise<{ target: ShareTarget; note: string }[]> {
   const l = linksFor(res);
+  // Android: one system share sheet with the teaser clip, text and link; the poster picks
+  // the X, LinkedIn or Substack app there. Falls back to the links below if it fails.
+  if (isAndroid && inTauri) {
+    try {
+      const withClip = await invoke<boolean>("share_native", {
+        text: `${l.text}
+${l.url}`, baseUrl: api.baseUrl, teaser: res.teaser ?? null, fileName: res.title || `GFC-${res.id.slice(0, 12)}`,
+      });
+      const names = targets.map((t) => SHARE_TARGETS.find((x) => x.id === t)!.label).join(", ");
+      return [{ target: targets[0] ?? "x", note: `Pick ${names} in the share sheet${withClip ? ": the teaser clip, text and link are attached" : ": the text and link are attached"}.` }];
+    } catch {
+      /* fall back to links and the clipboard */
+    }
+  }
   const wantsLinkedIn = targets.includes("linkedin") && !!l.linkedin;
   const wantsSubstack = targets.includes("substack") && !!l.substack;
   // Copy first: once a browser window takes focus, the page may no longer write to the

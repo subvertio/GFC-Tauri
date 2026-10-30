@@ -1,0 +1,13 @@
+// GFC's own build settings, kept out of build.gradle.kts because the Tauri CLI rewrites
+// parts of that file on every build (it strips applicationIdSuffix).
+//
+// Debug builds install as their own app, "GFC Dev" (tech.galacticfederation.gfc.dev), next to
+// the released GFC app and never over it: a debug-signed APK with the release ID would force
+// an uninstall, which wipes that app's data.
+android {
+    buildTypes {
+        debug {
+            applicationIdSuffix ".dev"
+        }
+    }
+}

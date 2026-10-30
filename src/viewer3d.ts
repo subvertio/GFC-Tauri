@@ -61,6 +61,8 @@ export class ModelView {
   private mixer: THREE.AnimationMixer | null = null;
   private timer = new THREE.Timer();
   private resizeObs: ResizeObserver;
+  private visObs: IntersectionObserver;
+  private onScreen = true;
   private abort = new AbortController();
   private resumeTimer = 0;
   private frame = 0;
@@ -102,6 +104,9 @@ export class ModelView {
 
     this.resizeObs = new ResizeObserver(() => this.resize());
     this.resizeObs.observe(host);
+    // Don't draw while scrolled out of view (battery), even before the feed disposes it
+    this.visObs = new IntersectionObserver(([e]) => (this.onScreen = e.isIntersecting));
+    this.visObs.observe(host);
     this.resize();
     this.loop();
   }
@@ -180,8 +185,8 @@ export class ModelView {
   private loop = () => {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.loop);
-    if (document.hidden) return;
     this.timer.update();
+    if (document.hidden || !this.onScreen) return;
     const dt = this.timer.getDelta();
     this.mixer?.update(dt);
     this.controls.update(dt);
@@ -195,6 +200,7 @@ export class ModelView {
     cancelAnimationFrame(this.frame);
     clearTimeout(this.resumeTimer);
     this.resizeObs.disconnect();
+    this.visObs.disconnect();
     this.controls.dispose();
     this.mixer?.stopAllAction();
     disposeObject(this.scene);

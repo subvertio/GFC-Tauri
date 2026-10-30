@@ -4,7 +4,7 @@
 // video, how long the public preview is (5, 10 or 30 s). One Share click does them all.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api, inTauri, titleFromBody, ApiError, type UploadResult } from "../api";
+import { api, inTauri, isAndroid, titleFromBody, ApiError, type UploadResult } from "../api";
 import { registerScreen, back, go, askToVerify, type Route } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
 import { load3d } from "../lazy3d";
@@ -21,6 +21,8 @@ const isImage = (p: Picked) => p.mime.startsWith("image/");
 const isModel = (p: Picked) => ["glb", "gltf"].includes(ext(p.name));
 const isZipFile = (p: Picked) => ext(p.name) === "zip";
 const PREVIEW_LENGTHS = [5, 10, 30];
+// The preview (and its first-frame thumbnail) reads the clip into memory: less on phones
+const VIDEO_PREVIEW_MAX = (isAndroid ? 40 : 120) * 1024 * 1024;
 
 let uploading = false;
 
@@ -159,8 +161,8 @@ registerScreen("post", (route, page) => {
         prev.append(h("div.media", img));
         await img.decode();
         thumbMaker = () => canvasJpeg(img, img.naturalWidth, img.naturalHeight, 0.82);
-      } else if (isVideo(p) && p.size < 120 * 1024 * 1024) {
-        objectUrl = URL.createObjectURL(new Blob([await readPicked(p, 120 * 1024 * 1024)], { type: p.mime }));
+      } else if (isVideo(p) && p.size < VIDEO_PREVIEW_MAX) {
+        objectUrl = URL.createObjectURL(new Blob([await readPicked(p, VIDEO_PREVIEW_MAX)], { type: p.mime }));
         const v = h("video", { src: objectUrl, muted: true, controls: true, preload: "auto", style: "max-height:280px" }) as HTMLVideoElement;
         v.muted = true;
         prev.append(h("div.media", v));

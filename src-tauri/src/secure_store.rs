@@ -1,7 +1,7 @@
-//! "Stay logged in": the session token in the OS credential store (Windows Credential
-//! Manager). Nothing else goes here, and the token never touches disk in plain text.
-//! Mobile gets its own backend (Android Keystore) when the Android build lands; until
-//! then the store reports itself unavailable there and the app keeps the token in memory.
+//! "Stay logged in": the session token in the OS credential store: Windows Credential
+//! Manager on Windows; on Android, app-private SharedPreferences encrypted with a key held
+//! in the Android Keystore. Nothing else goes here, and the token never touches disk in
+//! plain text.
 
 use tauri::{
     plugin::{Builder, TauriPlugin},
@@ -42,7 +42,47 @@ mod backend {
     pub const AVAILABLE: bool = true;
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "android")]
+mod backend {
+    use std::sync::Once;
+
+    fn entry(service: &str, key: &str) -> Result<keyring_core::Entry, String> {
+        // Tauri initializes the Android context (ndk-context) that the store needs
+        static INIT: Once = Once::new();
+        INIT.call_once(|| match android_native_keyring_store::Store::new() {
+            Ok(store) => keyring_core::set_default_store(store),
+            Err(e) => log_error(&e.to_string()),
+        });
+        keyring_core::Entry::new(service, key).map_err(|e| e.to_string())
+    }
+
+    fn log_error(msg: &str) {
+        eprintln!("secure-store: couldn't open the Android keystore: {msg}");
+    }
+
+    pub fn get(service: &str, key: &str) -> Result<Option<String>, String> {
+        match entry(service, key)?.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring_core::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    pub fn set(service: &str, key: &str, value: &str) -> Result<(), String> {
+        entry(service, key)?.set_password(value).map_err(|e| e.to_string())
+    }
+
+    pub fn delete(service: &str, key: &str) -> Result<(), String> {
+        match entry(service, key)?.delete_credential() {
+            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    pub const AVAILABLE: bool = true;
+}
+
+#[cfg(not(any(windows, target_os = "android")))]
 mod backend {
     pub fn get(_service: &str, _key: &str) -> Result<Option<String>, String> {
         Ok(None)

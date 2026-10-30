@@ -1,6 +1,6 @@
 // Log in, create an account (the recovery code is shown once), forgot password, and the node switcher.
 
-import { api, LIVE_NODE, ApiError } from "../api";
+import { api, LIVE_NODE, ApiError, isAndroid } from "../api";
 import { registerScreen, go, home, type Route } from "../app";
 import { session } from "../session";
 import { h, toast, sheet } from "../ui/dom";
@@ -92,7 +92,7 @@ registerScreen("login", (route, page) => {
     h("div.box",
       h("label", "Username"), user,
       h("label", "Password"), pass,
-      h("label.check", { style: "margin-top:12px" }, stay, "Stay logged in on this computer"),
+      h("label.check", { style: "margin-top:12px" }, stay, isAndroid ? "Stay logged in on this phone" : "Stay logged in on this computer"),
       h("p.small", { style: "color:#ffad1f;margin:12px 0 0" },
         "Your password also unlocks your wallets. Forgot it? Reset it with your phone or email, and the recovery code you'll get when you create your account brings your wallets back with it."),
       h("label", "E-mail, for new accounts"), email,
@@ -111,7 +111,8 @@ registerScreen("login", (route, page) => {
       h("p.muted.small", "Switching nodes logs you out: an account lives on one node.")),
     h("div", { style: "text-align:center" }, h("button.linkbtn", { onclick: home }, "Browse the feed without logging in")),
   ));
-  setTimeout(() => user.focus());
+  // On phones focusing would pop the keyboard over the screen before the user asked for it
+  if (!isAndroid) setTimeout(() => user.focus());
 });
 
 /** The recovery code, shown once. GFC can't show it again. */

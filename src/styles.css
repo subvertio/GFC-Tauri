@@ -287,3 +287,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 @keyframes pop { 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes rise { to { transform: translate(var(--dx), -95vh) rotateY(720deg); opacity: 0; } }
+
+/* Touch screens (the Android app): no grey tap flash, bigger tap targets, no page bounce */
+* { -webkit-tap-highlight-color: transparent; }
+.centre { overscroll-behavior: contain; }
+@media (pointer: coarse) {
+  .iconbtn { padding: 10px 12px; font-size: 14px; }
+  .btn.small { min-height: 40px; }
+  .media.model canvas { touch-action: none; }
+}

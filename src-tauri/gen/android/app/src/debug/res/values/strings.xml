@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug builds install as their own app ("GFC Dev", tech.galacticfederation.gfc.dev) -->
+    <string name="app_name">GFC Dev</string>
+    <string name="main_activity_title">GFC Dev</string>
+</resources>

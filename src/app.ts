@@ -38,13 +38,28 @@ export function currentRoute() {
   return current;
 }
 
+// Each page we open is also a browser history entry, so the Android back button (which
+// goes back in the web view) and a mouse's back button step back through pages.
+let depth = 0;
+let skipPop = false;
+window.addEventListener("popstate", () => {
+  if (skipPop) return void (skipPop = false);
+  depth = Math.max(0, depth - 1);
+  const prev = stack.pop();
+  show(prev ?? { name: "feed", src: "foryou" }, true);
+});
+
 export function go(r: Route, opts: { replace?: boolean } = {}) {
-  if (!opts.replace) stack.push(current);
+  if (!opts.replace) {
+    stack.push(current);
+    history.pushState({ gfc: ++depth }, "");
+  }
   if (stack.length > 50) stack.shift();
   show(r);
 }
 
 export function back() {
+  if (depth > 0) return history.back(); // popstate shows the previous page
   const prev = stack.pop();
   show(prev ?? { name: "feed", src: "foryou" }, true);
 }
@@ -52,6 +67,11 @@ export function back() {
 /** Home: For you, with the history cleared (the logo, Feed, Home). */
 export function home() {
   stack.length = 0;
+  if (depth > 0) {
+    skipPop = true;
+    history.go(-depth);
+    depth = 0;
+  }
   show({ name: "feed", src: "foryou" });
 }
 
