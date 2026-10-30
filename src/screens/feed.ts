@@ -103,9 +103,11 @@ registerScreen("feed", (route, page) => {
     if (r.src === "foryou") setTrending(items);
     let shown = items.filter(visibleToMe);
     if (r.src === "foryou") shown = mixCreators(shown);
-    const onHidden = (id: string) => {
-      const i = cards.findIndex((c) => c.el.dataset.id === id);
-      if (i >= 0) {
+    // A report hides that post; a block hides every post by that account
+    const onHidden = () => {
+      for (let i = cards.length - 1; i >= 0; i--) {
+        const { id = "", owner = "" } = cards[i].el.dataset;
+        if (!session.isHiddenForMe({ id, owner })) continue;
         cards[i].dispose();
         cards[i].el.remove();
         cards.splice(i, 1);

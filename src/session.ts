@@ -45,6 +45,8 @@ class Session {
   reported = new Set<string>();
   /** null = unknown */
   verified: boolean | null = null;
+  /** The node's /health rule; false on test nets. null = unknown. */
+  phoneRequired: boolean | null = null;
   /** Shown once after registering or making a new code; never stored. */
   pendingRecoveryCode = "";
   playCache = new Map<string, { links: PlayLinks; until: number }>();
@@ -114,6 +116,7 @@ class Session {
     this.blocked.clear();
     this.reported.clear();
     this.verified = null;
+    this.phoneRequired = null;
     this.playCache.clear();
     this.locked.clear();
   }

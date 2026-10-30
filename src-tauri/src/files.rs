@@ -83,6 +83,21 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
     Ok(Some(PickedFile { id, mime: mime_for(&name).into(), name, size: meta.len() }))
 }
 
+/// Debug builds only: register a file as if the user had picked it, so automated UI
+/// tests can post without a native dialog. Release builds refuse.
+#[tauri::command]
+pub fn debug_pick_path(picked: State<'_, Picked>, path: String) -> Result<PickedFile, String> {
+    if !cfg!(debug_assertions) {
+        return Err("not available".into());
+    }
+    let path = PathBuf::from(path);
+    let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    let name = path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "upload.bin".into());
+    let id = format!("f{}", picked.next.fetch_add(1, Ordering::Relaxed));
+    picked.files.lock().unwrap().insert(id.clone(), path);
+    Ok(PickedFile { id, mime: mime_for(&name).into(), name, size })
+}
+
 /// The picked file's bytes, for previews (images, 3D models) and backups. Capped.
 #[tauri::command]
 pub async fn read_picked(picked: State<'_, Picked>, id: String, max_bytes: u64) -> Result<tauri::ipc::Response, String> {

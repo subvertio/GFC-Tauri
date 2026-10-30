@@ -10,7 +10,8 @@ export function exclusiveAccess(s: Seed): Access {
   if (!session.loggedIn) return "login";
   if (session.isMine(s) || cachedLinks(s.id)) return "full";
   if (session.locked.has(s.id)) return "verify";
-  if (session.verified === true) return "full";
+  if (session.verified === true || session.phoneRequired === false) return "full";
+  if (session.verified === false && session.phoneRequired === true) return "verify";
   return "unknown";
 }
 

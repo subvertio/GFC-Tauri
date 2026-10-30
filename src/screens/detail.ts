@@ -86,7 +86,11 @@ registerScreen("seed", (route, page) => {
     if (s.exclusive && kind === "text") {
       renderText(null);
       if (access !== "login" && access !== "verify") {
-        playLinks(s).then((l) => alive && renderText(l?.text ?? "")).catch((e) => alive && toast(String(e.message), true));
+        playLinks(s).then((l) => {
+          if (!alive) return;
+          if (!l) return show(s); // not allowed: show the unlock link instead
+          renderText(l.text ?? "");
+        }).catch((e) => alive && toast(String(e.message), true));
       }
     } else renderText(s.description);
 
@@ -136,7 +140,11 @@ registerScreen("seed", (route, page) => {
       };
       if (s.exclusive) {
         if (access === "login" || access === "verify") useTeaser();
-        else playLinks(s).then((l) => (l ? (v.src = api.media(l.stream || l.full)) : useTeaser())).catch(useTeaser);
+        else playLinks(s).then((l) => {
+          if (!alive) return;
+          if (l) v.src = api.media(l.stream || l.full);
+          else show(s); // not allowed: teaser and the unlock link
+        }).catch(useTeaser);
       } else v.src = api.media(s.stream || s.full);
       trackPlayer(v, s, true);
     } else if (kind === "audio") {

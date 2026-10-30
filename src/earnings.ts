@@ -34,6 +34,7 @@ export async function checkEarnings(): Promise<number> {
 
 /** After login, register, or launch with a saved session. */
 export async function afterLogin() {
+  api.health().then((h) => (session.phoneRequired = h.phone_required_to_post)).catch(() => {});
   api.blocks().then((b) => b.forEach((n) => session.blocked.add(n.toLowerCase()))).catch(() => {});
   try {
     const st = await api.verifyStatus();

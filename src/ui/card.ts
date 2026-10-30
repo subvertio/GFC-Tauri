@@ -19,7 +19,7 @@ function truncate(s: string, n: number) {
 export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
   const kind = kindOf(s);
   const disposers: (() => void)[] = [];
-  const el = h("article.card", { dataset: { id: s.id } });
+  const el = h("article.card", { dataset: { id: s.id, owner: s.owner } });
   el.addEventListener("click", (e) => {
     if ((e.target as Element).closest("button,a,video,audio,canvas,.no-open")) return;
     go({ name: "seed", id: s.id, seed: s });

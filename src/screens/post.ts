@@ -93,7 +93,10 @@ registerScreen("post", (route, page) => {
     if (!inTauri) return toast("Picking files needs the desktop app.", true);
     if (uploading) return toast("Wait for the current upload to finish, or cancel it.");
     const p = await invoke<Picked | null>("pick_file", { kind });
-    if (!p) return;
+    if (p) await usePicked(p);
+  };
+
+  const usePicked = async (p: Picked) => {
     dropMedia();
     picked = p;
     if (!title.value.trim() && !text.value.trim()) title.value = p.name.replace(/\.[^.]+$/, "");
@@ -130,7 +133,12 @@ registerScreen("post", (route, page) => {
         const res = await model.loadBytes(await readPicked(p, BUDGET.bytes));
         box.querySelector(".note")?.remove();
         info.append(h("div.muted", `${res.triangles.toLocaleString()} triangles${res.animation ? `, animated (${res.animation})` : ""}. Drag to turn it; the thumbnail is the view when you post.`));
-        thumbMaker = () => model?.snapshot() ?? Promise.resolve(null);
+        thumbMaker = async () => {
+          const shot = await model?.snapshot();
+          if (!shot) return null;
+          const bmp = await createImageBitmap(shot);
+          return canvasJpeg(bmp, bmp.width, bmp.height, 0.85);
+        };
       }
     } catch (e) {
       if (isModel(p)) {
@@ -236,6 +244,11 @@ registerScreen("post", (route, page) => {
       h("div", { style: "margin-top:8px" }, progress, h("div.row", progressText, h("span.grow"), cancelBtn)),
       resultEl, after));
   update();
+  // Dev builds: automated UI tests attach a file without the native dialog
+  if (import.meta.env.DEV && inTauri) {
+    (window as unknown as Record<string, unknown>).__gfcTestAttach = async (path: string) =>
+      usePicked(await invoke<Picked>("debug_pick_path", { path }));
+  }
   if (r.pick) setTimeout(() => pick(r.pick!), 50);
   else setTimeout(() => (r.text ? text : title).focus());
 
