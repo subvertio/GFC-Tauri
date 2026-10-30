@@ -1,6 +1,7 @@
 // New post: title, then text, then media (optional), then Post. Text-only posts are
-// uploaded as a small .txt. Videos and text posts can be "Exclusive to GFC Network";
-// after posting one, "Share teaser on X" saves the teaser and opens the X intent.
+// uploaded as a small .txt. Videos, text posts and downloads (.zip) can be "Exclusive to
+// GFC Network": the poster picks where to share it (X, LinkedIn, Substack) and, for a
+// video, how long the public preview is (5, 10 or 30 s). One Share click does them all.
 
 import { invoke } from "@tauri-apps/api/core";
 import { api, inTauri, titleFromBody, ApiError, type UploadResult } from "../api";
@@ -8,7 +9,7 @@ import { registerScreen, back, go, askToVerify, type Route } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
 import { load3d } from "../lazy3d";
 import type { ModelView } from "../viewer3d";
-import { copyText, openExternal } from "../ui/actions";
+import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
 
 interface Picked { id: string; name: string; size: number; mime: string }
@@ -18,6 +19,8 @@ const ext = (n: string) => n.split(".").pop()!.toLowerCase();
 const isVideo = (p: Picked) => p.mime.startsWith("video/") || VIDEO_EXT.includes(ext(p.name));
 const isImage = (p: Picked) => p.mime.startsWith("image/");
 const isModel = (p: Picked) => ["glb", "gltf"].includes(ext(p.name));
+const isZipFile = (p: Picked) => ext(p.name) === "zip";
+const PREVIEW_LENGTHS = [5, 10, 30];
 
 let uploading = false;
 
@@ -48,6 +51,26 @@ registerScreen("post", (route, page) => {
   const mediaPanel = h("div.hidden");
   const exclusive = h("input", { type: "checkbox" }) as HTMLInputElement;
   const exclusiveHint = h("div.muted.small");
+  // Shown while Exclusive is ticked: where to share it, and (videos) the preview length
+  const targetBoxes = new Map<ShareTarget, HTMLInputElement>(
+    SHARE_TARGETS.map((t) => [t.id, h("input", { type: "checkbox", checked: t.id === "x" }) as HTMLInputElement]));
+  const allBox = h("input", { type: "checkbox" }) as HTMLInputElement;
+  const lengthRadios = PREVIEW_LENGTHS.map((n) =>
+    h("input", { type: "radio", name: "preview-length", value: String(n), checked: n === 5 }) as HTMLInputElement);
+  const syncAll = () => (allBox.checked = [...targetBoxes.values()].every((b) => b.checked));
+  for (const b of targetBoxes.values()) b.addEventListener("change", syncAll);
+  allBox.addEventListener("change", () => targetBoxes.forEach((b) => (b.checked = allBox.checked)));
+  const lengthRow = h("div",
+    h("label", "Preview length"),
+    h("div.row.wrap", { style: "gap:16px" }, lengthRadios.map((r, i) => h("label.check", r, `${PREVIEW_LENGTHS[i]} s`))));
+  const exclusiveOptions = h("div.hidden", { style: "margin-top:4px" },
+    h("label", "Share to"),
+    h("div.row.wrap", { style: "gap:16px" },
+      SHARE_TARGETS.map((t) => h("label.check", targetBoxes.get(t.id)!, t.label)),
+      h("label.check", allBox, "All")),
+    lengthRow);
+  const previewSeconds = () => Number(lengthRadios.find((r) => r.checked)?.value ?? 5);
+  for (const r of lengthRadios) r.addEventListener("change", () => update());
   const postBtn = h("button.btn.block", "Post") as HTMLButtonElement;
   const headerPost = h("button.btn.small", "Post") as HTMLButtonElement;
   const progress = h("div.progress.hidden", h("div"));
@@ -55,9 +78,10 @@ registerScreen("post", (route, page) => {
   const cancelBtn = h("button.btn.secondary.small.hidden", "Cancel upload") as HTMLButtonElement;
   const resultEl = h("div", { style: "white-space:pre-line;margin-top:12px" });
   const after = h("div.row.wrap.hidden", { style: "margin-top:12px" });
+  const notes = h("div.small", { style: "margin-top:8px;line-height:1.6" });
 
   const tooBig = () => !!picked && picked.size + 64 * 1024 > MAX_UPLOAD;
-  const exclusiveAllowed = () => !picked || isVideo(picked);
+  const exclusiveAllowed = () => !picked || isVideo(picked) || isZipFile(picked);
 
   const update = () => {
     const can = (!!text.value.trim() || !!picked) && !tooBig() && !uploading;
@@ -65,13 +89,19 @@ registerScreen("post", (route, page) => {
     const allowed = exclusiveAllowed();
     if (!allowed) exclusive.checked = false;
     exclusive.disabled = !allowed || uploading;
+    const video = !!picked && isVideo(picked);
+    exclusiveOptions.classList.toggle("hidden", !exclusive.checked || !allowed);
+    lengthRow.classList.toggle("hidden", !video);
+    lengthRadios.forEach((r) => (r.disabled = uploading));
     exclusiveHint.textContent = !allowed
-      ? "Only videos and text posts can be exclusive."
+      ? "Only videos, text posts and downloads (.zip) can be exclusive."
       : !exclusive.checked
-        ? "Only real GFC accounts see all of it; the rest of the world gets a preview to share on X."
-        : picked
-          ? "A 5-second teaser is public (share it on X). Only real GFC accounts can watch the full clip."
-          : "Everyone sees the title. Only real GFC accounts can read the post.";
+        ? "Only real GFC accounts see all of it; the rest of the world gets a preview to share."
+        : video
+          ? `A ${previewSeconds()}-second preview is public (share it). Only real GFC accounts can watch the full clip.`
+          : picked
+            ? "Everyone sees the title. Only real GFC accounts can download it."
+            : "Everyone sees the title. Only real GFC accounts can read the post.";
   };
   text.addEventListener("input", update);
   exclusive.addEventListener("change", update);
@@ -178,20 +208,22 @@ registerScreen("post", (route, page) => {
     } catch {
       /* post without a thumbnail */
     }
+    const targets = [...targetBoxes].filter(([, b]) => b.checked).map(([t]) => t);
+    const seconds = picked && isVideo(picked) ? previewSeconds() : undefined;
     const ttl = title.value.trim() || (picked ? picked.name.replace(/\.[^.]+$/, "") : titleFromBody(body));
     progress.classList.remove("hidden");
     cancelBtn.classList.remove("hidden");
     clear(resultEl);
     try {
       const { result: res, attempts } = await api.upload(
-        { fileId: picked?.id, text: picked ? undefined : body, title: ttl, description: body, tags: "", exclusive: exclusive.checked, thumbnail: thumb },
+        { fileId: picked?.id, text: picked ? undefined : body, title: ttl, description: body, tags: "", exclusive: exclusive.checked, teaserSeconds: seconds, thumbnail: thumb },
         (sent, total) => {
           (progress.firstChild as HTMLElement).style.width = `${total ? (100 * sent) / total : 0}%`;
           progressText.textContent = `Uploading ${fmtBytes(sent)} of ${fmtBytes(total)}`;
         },
         uploadId,
       );
-      showResult(res, attempts);
+      showResult(res, attempts, targets);
       dropMedia();
       title.value = "";
       text.value = "";
@@ -209,7 +241,8 @@ registerScreen("post", (route, page) => {
     }
   };
 
-  const showResult = (res: UploadResult, attempts: number) => {
+  const showResult = (res: UploadResult, attempts: number, chosen: ShareTarget[]) => {
+    const secs = res.teaser_seconds ?? 5;
     const lines = [attempts > 1 ? `Posted (after ${attempts} tries).` : "Posted!"];
     if (res.repost_of) lines.push(`This looks like a repost of @${res.repost_of.owner}. They'll get the credit.`);
     else if (res.first_post_bonus) lines.push(`You earned ${res.first_post_bonus} GFC for your first post!`);
@@ -217,18 +250,36 @@ registerScreen("post", (route, page) => {
     else if (res.rewards_enabled === false) lines.push("Create a wallet so your posts can earn GFC.");
     if (res.exclusive) {
       if (res.content_type === "video") lines.push(res.teaser
-        ? "Exclusive to the GFC Network. Here's your 5-second teaser: share it on X, and the full clip stays for GFC accounts."
-        : "Exclusive to the GFC Network. The teaser is still being made; you can share the link on X now.");
-      else lines.push("Exclusive to the GFC Network. Share it on X: people see the title and come to GFC to read it.");
+        ? `Exclusive to the GFC Network. Here's your ${secs}-second teaser: share it, and the full clip stays for GFC accounts.`
+        : "Exclusive to the GFC Network. The teaser is still being made; you can share the link now.");
+      else if (res.download) lines.push("Exclusive to the GFC Network. Share it: people see the title and come to GFC to download it.");
+      else lines.push("Exclusive to the GFC Network. Share it: people see the title and come to GFC to read it.");
     }
+    if (res.download) lines.push("It's being checked for viruses: it can be downloaded once the scan passes.");
     clear(resultEl, h("div.success", { style: "font-weight:700" }, lines[0]), lines.slice(1).map((l) => h("div", l)));
     if (res.exclusive && res.teaser) {
       resultEl.append(h("div.media", { style: "max-width:320px" },
         h("video", { src: api.media(res.teaser), muted: true, loop: true, autoplay: true, playsInline: true })),
-        h("div.muted.small", "Your 5-second teaser. The full clip is only on GFC."));
+        h("div.muted.small", `Your ${secs}-second teaser. The full clip is only on GFC.`));
     }
+    const targets = res.exclusive ? chosen.filter((t) => availableTargets(res).includes(t)) : [];
+    const names = targets.map((t) => SHARE_TARGETS.find((x) => x.id === t)!.label);
+    const listed = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+    clear(notes);
+    const shareBtn = h("button.btn", `${res.teaser && targets.includes("x") ? "Share teaser" : "Share"} on ${listed}`) as HTMLButtonElement;
+    shareBtn.onclick = async () => {
+      shareBtn.disabled = true;
+      const done = await shareTo(res, targets);
+      clear(notes, done.map((n) => h("div", h("b", SHARE_TARGETS.find((x) => x.id === n.target)!.label + ": "), n.note)));
+      shareBtn.disabled = false;
+    };
+    const wantsClip = !!res.teaser && targets.some((t) => t !== "x");
     clear(after,
-      res.x_post ? h("button.btn", { onclick: () => shareTeaser(res) }, res.teaser ? "Share teaser on X" : "Share on X") : null,
+      targets.length ? shareBtn : null,
+      wantsClip ? h("button.btn.secondary", { onclick: async () => {
+        const dir = await saveTeaser(res);
+        toast(dir ? `Teaser saved to ${dir}. Attach it to your LinkedIn or Substack post.` : "Couldn't save the teaser.", !dir);
+      } }, "Save teaser") : null,
       h("button.btn.secondary", { onclick: () => go({ name: "seed", id: res.id }) }, "View your post"));
     after.classList.remove("hidden");
     if (res.first_post_bonus) {
@@ -254,10 +305,10 @@ registerScreen("post", (route, page) => {
       h("div", { style: "margin-top:12px" }, mediaPanel),
       h("div.box", { style: "margin-top:16px" },
         h("label.check", exclusive, h("span.gold", { style: "font-weight:700" }, "Exclusive to GFC Network")),
-        exclusiveHint),
+        exclusiveHint, exclusiveOptions),
       postBtn,
       h("div", { style: "margin-top:8px" }, progress, h("div.row", progressText, h("span.grow"), cancelBtn)),
-      resultEl, after));
+      resultEl, after, notes));
   update();
   // Dev builds: automated UI tests attach a file without the native dialog
   if (import.meta.env.DEV && inTauri) {
@@ -272,24 +323,3 @@ registerScreen("post", (route, page) => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   };
 });
-
-/** Save the teaser to Videos\GFC (shown in Explorer) and open the X post with the text and link. */
-async function shareTeaser(res: UploadResult) {
-  const x = res.x_post ?? {};
-  const intent = x.intent || `https://x.com/intent/post?text=${encodeURIComponent(x.text ?? "")}&url=${encodeURIComponent(x.url ?? "")}`;
-  let saved = "";
-  if (res.teaser && inTauri) {
-    try {
-      toast("Getting the teaser…");
-      saved = await invoke<string>("save_teaser", { baseUrl: api.baseUrl, path: res.teaser, fileName: res.title || `GFC-${res.id.slice(0, 12)}` });
-    } catch {
-      /* share without the clip */
-    }
-  }
-  if (await openExternal(intent)) {
-    toast(saved ? `Teaser saved to ${saved.replace(/[\\/][^\\/]+$/, "")}. Attach it to the post that just opened on X.` : "Opened X to share.");
-  } else if (await copyText(`${x.text ?? ""} ${x.url ?? ""}`.trim())) {
-    toast("Couldn't open X, so the post text and link were copied instead.");
-  }
-}
-

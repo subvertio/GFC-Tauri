@@ -29,8 +29,11 @@ plain TypeScript and DOM, and the native parts are small Rust commands.
 
 ```
 npm install
-npm run tauri dev
+npm run tauri:dev
 ```
+
+`tauri:dev` runs as "GFC Dev" (`src-tauri/tauri.dev.conf.json`): its own app identifier,
+WebView2 data and Credential Manager entry, so it never touches the installed app's login.
 
 `npm run dev` alone serves the UI in a browser at http://localhost:1420. That only works
 against a node that allows that origin (`GFC_CORS_ORIGINS`), and file picking, uploads

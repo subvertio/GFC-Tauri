@@ -1,0 +1,73 @@
+// Sharing an exclusive after posting it: X, LinkedIn and Substack, all from one click.
+// X takes text + link in its intent. LinkedIn's share page takes only the link (it reads the
+// title and image from the post's share page), so the text goes to the clipboard for the
+// caption. Substack has no posting link: the text and link go to the clipboard and its
+// Notes composer opens.
+
+import { invoke } from "@tauri-apps/api/core";
+import { api, inTauri, type UploadResult } from "../api";
+import { copyText, openExternal } from "./actions";
+
+export type ShareTarget = "x" | "linkedin" | "substack";
+export const SHARE_TARGETS: { id: ShareTarget; label: string }[] = [
+  { id: "x", label: "X" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "substack", label: "Substack" },
+];
+
+/** The share links, from `share` (new nodes) or `x_post` (older nodes: X only). */
+function linksFor(res: UploadResult) {
+  const s = res.share;
+  const text = s?.text ?? res.x_post?.text ?? "";
+  const url = s?.url ?? res.x_post?.url ?? "";
+  const x = s?.x || res.x_post?.intent || `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  return { text, url, x, linkedin: s?.linkedin ?? "", substack: s?.substack ?? "" };
+}
+
+export function availableTargets(res: UploadResult): ShareTarget[] {
+  const l = linksFor(res);
+  return SHARE_TARGETS.map((t) => t.id).filter((t) => !!l[t]);
+}
+
+/** Save the teaser clip to Videos\GFC (shown in Explorer). Returns its folder, or "". */
+export async function saveTeaser(res: UploadResult): Promise<string> {
+  if (!res.teaser || !inTauri) return "";
+  try {
+    const path = await invoke<string>("save_teaser", { baseUrl: api.baseUrl, path: res.teaser, fileName: res.title || `GFC-${res.id.slice(0, 12)}` });
+    return path.replace(/[\\/][^\\/]+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Share to every chosen target. Returns one short note per target, for the post screen. */
+export async function shareTo(res: UploadResult, targets: ShareTarget[]): Promise<{ target: ShareTarget; note: string }[]> {
+  const l = linksFor(res);
+  const wantsLinkedIn = targets.includes("linkedin") && !!l.linkedin;
+  const wantsSubstack = targets.includes("substack") && !!l.substack;
+  // Copy first: once a browser window takes focus, the page may no longer write to the
+  // clipboard. Substack needs text + link; LinkedIn only the text (it has the link).
+  const copied = wantsSubstack ? await copyText(`${l.text}\n${l.url}`) : wantsLinkedIn ? await copyText(l.text) : false;
+  let savedDir = "";
+  if (targets.includes("x") && res.teaser) savedDir = await saveTeaser(res);
+
+  const notes: { target: ShareTarget; note: string }[] = [];
+  for (const t of targets) {
+    if (t === "x") {
+      const ok = await openExternal(l.x);
+      notes.push({ target: t, note: !ok ? "Couldn't open X."
+        : savedDir ? `Opened X. The teaser is saved in ${savedDir}: attach it to the post.` : "Opened X with the text and link." });
+    } else if (t === "linkedin" && wantsLinkedIn) {
+      const ok = await openExternal(l.linkedin);
+      notes.push({ target: t, note: !ok ? "Couldn't open LinkedIn."
+        : !copied ? "Opened LinkedIn."
+        : wantsSubstack ? "Opened LinkedIn: paste the copied text as the caption (leave out the link)."
+        : "Text copied: paste it into LinkedIn as the caption." });
+    } else if (t === "substack" && wantsSubstack) {
+      const ok = await openExternal(l.substack);
+      notes.push({ target: t, note: !ok ? "Couldn't open Substack."
+        : copied ? "Text and link copied: paste them into a new Substack Note." : "Opened Substack Notes." });
+    }
+  }
+  return notes;
+}

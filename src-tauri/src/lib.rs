@@ -15,6 +15,7 @@ pub fn run() {
             files::forget_picked,
             files::save_text,
             files::save_teaser,
+            files::download_file,
             files::upload_seed,
             files::cancel_upload,
         ])

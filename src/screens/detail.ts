@@ -10,6 +10,7 @@ import type { ModelView } from "../viewer3d";
 import { moreMenu, toggleLike, toggleBookmark, shareOnX, copyText, onSeedChange, seedChanged, editHistory, openExternal } from "../ui/actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "../ui/exclusive";
 import { trackPlayer, trackVisible, reportPlayed } from "../ui/media";
+import { downloadBox } from "../ui/download";
 
 registerScreen("seed", (route, page) => {
   const r = route as Extract<Route, { name: "seed" }>;
@@ -46,7 +47,7 @@ registerScreen("seed", (route, page) => {
         h("button.btn.secondary.small", { onclick: () => toggleBookmark(s) }, s.bookmarked ? "★ Bookmarked" : "☆ Bookmark"),
         h("button.btn.secondary.small", { onclick: () => shareOnX(s) }, "Share on X"),
         h("button.btn.secondary.small", { onclick: async () => (await copyText(api.shareUrl(s.id))) && toast("Share link copied.") }, "Copy link"),
-        kind === "other" && s.full ? h("button.btn.secondary.small", { onclick: () => openExternal(api.media(s.full)) }, "Open the original file") : null);
+        kind === "other" && s.full && !s.download ? h("button.btn.secondary.small", { onclick: () => openExternal(api.media(s.full)) }, "Open the original file") : null);
     };
 
     const renderText = (text: string | null) => {
@@ -55,7 +56,7 @@ registerScreen("seed", (route, page) => {
     };
 
     const isAuto = kind === "text" && s.title === titleFromBody(s.description || "");
-    const unlock = s.exclusive ? unlockText(kind === "video" ? "video" : "text", access) : "";
+    const unlock = s.exclusive && !s.download ? unlockText(kind === "video" ? "video" : "text", access) : "";
     clear(body,
       h("div.row", { style: "gap:12px;margin-bottom:12px" },
         h("span", { onclick: () => openUser(s.owner) }, avatarFor(s.owner, s.owner_avatar)),
@@ -135,7 +136,10 @@ registerScreen("seed", (route, page) => {
       const box = h("div.media", v);
       el.append(box);
       const useTeaser = () => {
-        if (s.teaser) v.src = api.media(s.teaser);
+        if (s.teaser) {
+          v.src = api.media(s.teaser);
+          box.after(h("div.muted.small", { style: "margin-top:4px" }, `${s.teaser_seconds ?? 5}-second preview. The full clip is only for GFC accounts.`));
+        }
         else clear(box, h("div.notice", "The teaser isn't ready yet. Try again in a minute."));
       };
       if (s.exclusive) {
@@ -153,6 +157,7 @@ registerScreen("seed", (route, page) => {
       trackPlayer(a, s, true);
     } else if (kind === "other") {
       if (s.thumb) el.append(h("div.media", h("img", { src: api.media(s.thumb), alt: "" })));
+      if (s.download) el.append(downloadBox(s));
     }
   };
 

@@ -59,6 +59,7 @@ fn mime_for(name: &str) -> &'static str {
         "glb" => "model/gltf-binary",
         "gltf" => "model/gltf+json",
         "txt" | "md" => "text/plain",
+        "zip" => "application/zip",
         _ => "application/octet-stream",
     }
 }
@@ -71,7 +72,7 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
         "image" => d.add_filter("Images", &["jpg", "jpeg", "png", "gif", "webp"]),
         "backup" => d.add_filter("GFC wallet backup", &["json"]),
         _ => d
-            .add_filter("3D models, audio and other files", &["glb", "gltf", "mp3", "wav", "ogg", "m4a", "flac", "opus", "jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "webm"])
+            .add_filter("3D models, audio, downloads and other files", &["glb", "gltf", "zip", "mp3", "wav", "ogg", "m4a", "flac", "opus", "jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "webm"])
             .add_filter("All files", &["*"]),
     };
     let Some(fp) = d.blocking_pick_file() else { return Ok(None) };
@@ -160,6 +161,68 @@ pub async fn save_teaser<R: Runtime>(app: AppHandle<R>, base_url: String, path: 
     Ok(dest.to_string_lossy().into_owned())
 }
 
+/// The largest download the app saves (the gateway takes uploads up to 200 MB).
+const MAX_DOWNLOAD_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Save a post's download (a zip) through the native save dialog, streaming it to disk.
+/// Returns the path written, or None if the user cancelled.
+#[tauri::command]
+pub async fn download_file<R: Runtime>(app: AppHandle<R>, url: String, default_name: String) -> Result<Option<String>, String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("not a web link".into());
+    }
+    let name: String = default_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || " -_.()".contains(c) { c } else { '_' })
+        .take(120)
+        .collect();
+    let mut d = app.dialog().file().set_file_name(if name.trim().is_empty() { "download.zip".to_string() } else { name });
+    if let Ok(dir) = app.path().download_dir() {
+        d = d.set_directory(dir);
+    }
+    let Some(fp) = d.blocking_save_file() else { return Ok(None) };
+    let path = fp.into_path().map_err(|e| e.to_string())?;
+
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+    let res = reqwest::Client::new().get(&url).timeout(Duration::from_secs(30 * 60)).send().await.map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        let status = res.status().as_u16();
+        let body = res.text().await.unwrap_or_default();
+        let detail = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v.get("detail").and_then(|d| d.as_str()).map(String::from));
+        return Err(detail.unwrap_or_else(|| format!("Download failed (HTTP {status}).")));
+    }
+    if res.content_length().unwrap_or(0) > MAX_DOWNLOAD_BYTES {
+        return Err("This download is too big.".into());
+    }
+    // Write next to the target, then rename, so a failed download never leaves a partial file behind
+    let tmp = path.with_extension("part");
+    let mut file = tokio::fs::File::create(&tmp).await.map_err(|e| e.to_string())?;
+    let mut stream = res.bytes_stream();
+    let mut written: u64 = 0;
+    let result: Result<(), String> = async {
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| e.to_string())?;
+            written += chunk.len() as u64;
+            if written > MAX_DOWNLOAD_BYTES {
+                return Err("This download is too big.".into());
+            }
+            file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        }
+        file.flush().await.map_err(|e| e.to_string())
+    }
+    .await;
+    drop(file);
+    if let Err(e) = result {
+        let _ = tokio::fs::remove_file(&tmp).await;
+        return Err(e);
+    }
+    tokio::fs::rename(&tmp, &path).await.map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 #[derive(Clone, Serialize)]
 pub struct Progress {
     sent: u64,
@@ -187,12 +250,13 @@ pub async fn upload_seed(
     description: String,
     tags: String,
     exclusive: bool,
+    teaser_seconds: Option<u32>,
     thumbnail: Option<Vec<u8>>,
     on_progress: Channel<Progress>,
 ) -> Result<HttpResult, String> {
     let cancel = Arc::new(AtomicBool::new(false));
     picked.cancels.lock().unwrap().insert(upload_id.clone(), cancel.clone());
-    let result = upload_inner(&picked, &base_url, &token, file_id, text, title, description, tags, exclusive, thumbnail, on_progress, cancel).await;
+    let result = upload_inner(&picked, &base_url, &token, file_id, text, title, description, tags, exclusive, teaser_seconds, thumbnail, on_progress, cancel).await;
     picked.cancels.lock().unwrap().remove(&upload_id);
     result
 }
@@ -208,6 +272,7 @@ async fn upload_inner(
     description: String,
     tags: String,
     exclusive: bool,
+    teaser_seconds: Option<u32>,
     thumbnail: Option<Vec<u8>>,
     on_progress: Channel<Progress>,
     cancel: Arc<AtomicBool>,
@@ -217,6 +282,9 @@ async fn upload_inner(
     let mut form = Form::new().text("title", title).text("description", description).text("tags", tags);
     if exclusive {
         form = form.text("exclusive", "true");
+        if let Some(sec) = teaser_seconds {
+            form = form.text("teaser_seconds", sec.to_string());
+        }
     }
     if let Some(t) = thumbnail.filter(|t| !t.is_empty()) {
         form = form.part("thumbnail", Part::bytes(t).file_name("thumb.jpg").mime_str("image/jpeg").unwrap());

@@ -20,6 +20,13 @@ export class ApiError extends Error {
 
 // ---- Types (as the node sends them) ----------------------------------------------
 
+/** A zip post ("download"): checked and virus-scanned on the node before anyone can get it. */
+export interface Download {
+  name: string; size: number;
+  /** pending | clean | infected | rejected | error | unavailable (no scanner: test nets only) */
+  status: string;
+  scanned_at?: string; engine?: string; sha256?: string; files?: number | null; programs?: number | null;
+}
 export interface RepostOf { seed_id: string; owner: string; label?: string; url?: string }
 export interface Seed {
   id: string;
@@ -45,6 +52,9 @@ export interface Seed {
   repost_of?: RepostOf | null;
   exclusive?: boolean;
   teaser?: string | null;
+  /** The public preview's length for exclusive videos: 5, 10 or 30 */
+  teaser_seconds?: number;
+  download?: Download;
 }
 export interface Profile { username: string; first_name?: string; last_name?: string; bio?: string; avatar?: string | null; created_at?: string }
 export interface Tx {
@@ -60,8 +70,10 @@ export interface Security { recovery_code: boolean; email: string; email_verifie
 export interface TopSeeder { wallet: string; owner?: string; total_earned_gfc: number; transfer_count: number }
 export interface PodtStats { total_reward_gfc: number; total_transfers: number; top_seeders: TopSeeder[] }
 export interface XPost { text?: string; url?: string; intent?: string }
+/** Where an exclusive can be shared. Substack has no posting link: copy text + url, open its Notes. */
+export interface ShareLinks { text: string; url: string; x: string; linkedin: string; substack: string }
 export interface UploadResult extends Seed {
-  rewards_enabled?: boolean; first_post_bonus?: number; first_post_bonus_pending?: boolean; x_post?: XPost; desc?: string;
+  rewards_enabled?: boolean; first_post_bonus?: number; first_post_bonus_pending?: boolean; x_post?: XPost; share?: ShareLinks; desc?: string;
 }
 
 export type Kind = "3d" | "image" | "video" | "audio" | "text" | "other";
@@ -91,6 +103,7 @@ export function kindOf(s: Seed): Kind {
   if (ct === "text" || ct.startsWith("text/")) return "text";
   const ext = extOf(s.full);
   for (const [k, list] of Object.entries(EXT)) if (list.includes(ext)) return k as Kind;
+  if (s.download) return "other"; // a zip: its link is hidden until the virus scan passes
   if (s.exclusive && !s.full && !s.teaser) return "text";
   return "other";
 }
@@ -98,6 +111,8 @@ export function kindOf(s: Seed): Kind {
 export const KIND_LABEL: Record<Kind, string> = { "3d": "3D model", image: "Image", video: "Video", audio: "Audio", text: "Text", other: "File" };
 
 /** A text post's automatic title: the first line, at most 80 characters. */
+export const isZip = (path?: string | null) => extOf(path) === "zip";
+
 export function titleFromBody(body: string): string {
   const line = body.trim().split(/\r?\n/)[0].trim();
   return line.length > 80 ? line.slice(0, 79) + "…" : line;
@@ -358,7 +373,7 @@ export class GfcApi {
 
   /** Upload with progress, retried twice (2 s, then 6 s) on network errors, 429 and 5xx. */
   async upload(
-    args: { fileId?: string; text?: string; title: string; description: string; tags: string; exclusive: boolean; thumbnail?: Uint8Array | null },
+    args: { fileId?: string; text?: string; title: string; description: string; tags: string; exclusive: boolean; teaserSeconds?: number; thumbnail?: Uint8Array | null },
     onProgress: (sent: number, total: number) => void,
     uploadId: string,
   ): Promise<{ result: UploadResult; attempts: number }> {
@@ -373,6 +388,7 @@ export class GfcApi {
           uploadId, baseUrl: this.baseUrl, token: this.token,
           fileId: args.fileId ?? null, text: args.text ?? null,
           title: args.title, description: args.description, tags: args.tags, exclusive: args.exclusive,
+          teaserSeconds: args.exclusive && args.teaserSeconds ? args.teaserSeconds : null,
           thumbnail: args.thumbnail ? Array.from(args.thumbnail) : null, onProgress: ch,
         });
       } catch (e) {

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GFC Dev",
+  "identifier": "tech.galacticfederation.gfc.dev",
+  "app": { "windows": [{ "title": "GFC (dev build)", "width": 1280, "height": 800, "minWidth": 360, "minHeight": 560, "backgroundColor": "#000000" }] }
+}

@@ -8,6 +8,7 @@ import { lazyModel } from "../lazy3d";
 import { moreMenu, toggleLike, toggleBookmark, shareLink, onSeedChange, editHistory } from "./actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "./exclusive";
 import { trackPlayer, pauseWhenOffscreen } from "./media";
+import { downloadBox } from "./download";
 
 export interface CardHandle { el: HTMLElement; dispose: () => void }
 
@@ -62,7 +63,7 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
 }
 
 function unlockLink(s: Seed, kind: string, access: ReturnType<typeof exclusiveAccess>) {
-  if (!s.exclusive) return null;
+  if (!s.exclusive || s.download) return null; // a download's box has its own link
   const k = kind === "video" ? "video" : "text";
   const label = unlockText(k, access);
   if (label) {
@@ -118,6 +119,7 @@ function mediaFor(s: Seed, kind: string, access: ReturnType<typeof exclusiveAcce
       return h("div.media.audio", thumbImg(s), audio);
     }
     default: {
+      if (s.download) return downloadBox(s);
       const img = thumbImg(s);
       return h("div.media", img ?? h("div.media.text-only", { style: "border:0;margin:0" }, `${KIND_LABEL.other} · open the post to download it`));
     }
@@ -126,7 +128,8 @@ function mediaFor(s: Seed, kind: string, access: ReturnType<typeof exclusiveAcce
 
 function videoBox(s: Seed, access: ReturnType<typeof exclusiveAccess>, disposers: (() => void)[]) {
   const locked = s.exclusive && (access === "login" || access === "verify");
-  const label = locked ? "▶ Play 5-second teaser" : "▶ Play video";
+  const secs = s.teaser_seconds ?? 5;
+  const label = locked ? `▶ Play ${secs}-second teaser` : "▶ Play video";
   const box = h("div.media.fixed");
   const poster = thumbImg(s);
   const startPlay = async () => {
@@ -159,7 +162,7 @@ function videoBox(s: Seed, access: ReturnType<typeof exclusiveAccess>, disposers
       v.load();
     });
   };
-  clear(box, poster ?? h("div", { style: "width:100%;height:100%;background:#0b0c0e" }), h("span.tag", s.exclusive && locked ? "Teaser" : "Video"),
+  clear(box, poster ?? h("div", { style: "width:100%;height:100%;background:#0b0c0e" }), h("span.tag", s.exclusive && locked ? `${secs}s preview` : "Video"),
     h("button.overlay", { title: label, onclick: startPlay }, h("span", "▶")));
   return box;
 }

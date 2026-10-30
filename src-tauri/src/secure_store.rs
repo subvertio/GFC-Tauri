@@ -5,33 +5,35 @@
 
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Runtime,
+    AppHandle, Runtime,
 };
 
-const SERVICE: &str = "tech.galacticfederation.gfc";
+// The credential's service name is the app identifier, so a dev build
+// (tauri.dev.conf.json) never reads or overwrites the installed app's login.
+fn service<R: Runtime>(app: &AppHandle<R>) -> String {
+    app.config().identifier.clone()
+}
 
 #[cfg(windows)]
 mod backend {
-    use super::SERVICE;
-
-    fn entry(key: &str) -> Result<keyring::Entry, String> {
-        keyring::Entry::new(SERVICE, key).map_err(|e| e.to_string())
+    fn entry(service: &str, key: &str) -> Result<keyring::Entry, String> {
+        keyring::Entry::new(service, key).map_err(|e| e.to_string())
     }
 
-    pub fn get(key: &str) -> Result<Option<String>, String> {
-        match entry(key)?.get_password() {
+    pub fn get(service: &str, key: &str) -> Result<Option<String>, String> {
+        match entry(service, key)?.get_password() {
             Ok(v) => Ok(Some(v)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(e) => Err(e.to_string()),
         }
     }
 
-    pub fn set(key: &str, value: &str) -> Result<(), String> {
-        entry(key)?.set_password(value).map_err(|e| e.to_string())
+    pub fn set(service: &str, key: &str, value: &str) -> Result<(), String> {
+        entry(service, key)?.set_password(value).map_err(|e| e.to_string())
     }
 
-    pub fn delete(key: &str) -> Result<(), String> {
-        match entry(key)?.delete_credential() {
+    pub fn delete(service: &str, key: &str) -> Result<(), String> {
+        match entry(service, key)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
@@ -42,13 +44,13 @@ mod backend {
 
 #[cfg(not(windows))]
 mod backend {
-    pub fn get(_key: &str) -> Result<Option<String>, String> {
+    pub fn get(_service: &str, _key: &str) -> Result<Option<String>, String> {
         Ok(None)
     }
-    pub fn set(_key: &str, _value: &str) -> Result<(), String> {
+    pub fn set(_service: &str, _key: &str, _value: &str) -> Result<(), String> {
         Err("secure storage isn't available on this platform yet".into())
     }
-    pub fn delete(_key: &str) -> Result<(), String> {
+    pub fn delete(_service: &str, _key: &str) -> Result<(), String> {
         Ok(())
     }
     pub const AVAILABLE: bool = false;
@@ -68,21 +70,21 @@ fn available() -> bool {
 }
 
 #[tauri::command]
-fn get(key: String) -> Result<Option<String>, String> {
+fn get<R: Runtime>(app: AppHandle<R>, key: String) -> Result<Option<String>, String> {
     check_key(&key)?;
-    backend::get(&key)
+    backend::get(&service(&app), &key)
 }
 
 #[tauri::command]
-fn set(key: String, value: String) -> Result<(), String> {
+fn set<R: Runtime>(app: AppHandle<R>, key: String, value: String) -> Result<(), String> {
     check_key(&key)?;
-    backend::set(&key, &value)
+    backend::set(&service(&app), &key, &value)
 }
 
 #[tauri::command]
-fn delete(key: String) -> Result<(), String> {
+fn delete<R: Runtime>(app: AppHandle<R>, key: String) -> Result<(), String> {
     check_key(&key)?;
-    backend::delete(&key)
+    backend::delete(&service(&app), &key)
 }
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
