@@ -106,7 +106,7 @@ function mediaFor(s: Seed, kind: string, access: ReturnType<typeof exclusiveAcce
     }
     case "3d": {
       const note = h("div.note");
-      const box = h("div.media.model", { title: "Drag to turn · Ctrl + wheel to zoom · double-click to reset" },
+      const box = h("div.media.model", { title: matchMedia("(pointer: coarse)").matches ? "" : "Drag to turn · Ctrl + wheel to zoom · double-click to reset" },
         h("span.tag", "3D"), thumbImg(s) ?? h("div.empty", { style: "padding-top:40%" }, "3D model"), note);
       if (s.full) disposers.push(lazyModel(box, api.media(s.full), note));
       return box;

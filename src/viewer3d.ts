@@ -16,6 +16,9 @@ import { fetchBytes } from "./api";
 export const BUDGET = { bytes: 64 * 1024 * 1024, triangles: 1_500_000 };
 const RESUME_TURN_MS = 4000;
 
+/** Phones and tablets: pinch to zoom, two fingers to pan, double-tap to reset. */
+export const TOUCH = matchMedia("(pointer: coarse)").matches;
+
 let draco: DRACOLoader | null = null;
 let ktx2: KTX2Loader | null = null;
 
@@ -89,8 +92,8 @@ export class ModelView {
     this.controls.enableDamping = true;
     this.controls.autoRotate = opts.autoRotate ?? true;
     this.controls.autoRotateSpeed = 1.2;
-    // The plain wheel scrolls the feed; Ctrl + wheel zooms
-    this.controls.enableZoom = false;
+    // Mouse: the plain wheel scrolls the feed and Ctrl + wheel zooms (onWheel). Touch: pinch zooms.
+    this.controls.enableZoom = TOUCH;
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
     this.canvas.addEventListener("dblclick", () => this.resetView());
     this.controls.addEventListener("start", () => {

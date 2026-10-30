@@ -296,3 +296,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .btn.small { min-height: 40px; }
   .media.model canvas { touch-action: none; }
 }
+/* In the feed, a vertical swipe over a 3D card scrolls the page; sideways drags turn the
+   model (OrbitControls sets touch-action: none inline, hence !important). The post screen
+   keeps every gesture for the model. */
+.card .media.model canvas { touch-action: pan-y !important; }

@@ -112,7 +112,7 @@ registerScreen("seed", (route, page) => {
       const box = h("div.media.model", note);
       const reset = h("button.btn.secondary.small.corner", { title: "Reset view (or double-click)" }, "Reset view");
       box.append(reset);
-      el.append(box, h("div.muted.small", { style: "margin-top:4px" }, "Drag to orbit · Ctrl + wheel to zoom · right-drag to pan · double-click to reset"));
+      el.append(box, h("div.muted.small", { style: "margin-top:4px" }, (matchMedia("(pointer: coarse)").matches ? "Drag to turn · pinch to zoom · two fingers to pan · double-tap to reset" : "Drag to orbit · Ctrl + wheel to zoom · right-drag to pan · double-click to reset")));
       reset.onclick = () => model?.resetView();
       let reported = false;
       const report = () => !reported && ((reported = true), reportPlayed(s, true));
