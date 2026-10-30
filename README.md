@@ -49,6 +49,36 @@ The NSIS installer lands in `src-tauri/target/release/bundle/nsis/`. It installs
 user and downloads the WebView2 runtime only if Windows doesn't have it (Windows 11
 always does).
 
+## Android
+
+Needs the Android SDK (`D:\Android\Sdk`), NDK 27, Android Studio's JDK and the Rust Android
+targets (`rustup target add aarch64-linux-android`). The project is in `src-tauri/gen/android`.
+
+```
+.\scripts\android.ps1 -Install
+```
+
+builds a debug APK and installs it over adb. Debug builds are **GFC Dev**
+(`tech.galacticfederation.gfc.dev`): they install next to the GFC app and never replace it.
+The script exists because `tauri android build` symlinks the Rust library into the project,
+which Windows only allows in Developer Mode.
+
+Release (signed with the same upload key as the Unreal app, so it updates GFC in place; its
+version code, 2000 for 0.2.0, is above the Unreal app's):
+
+```
+.\scripts\android.ps1 -Release
+```
+
+It asks for the key's password (or reads `GFC_KEYSTORE_PASSWORD`). `GFC_KEYSTORE` (default
+`D:\GFCKeys\gfc-release.keystore`) and `GFC_KEY_ALIAS` (default `gfc`) override the key; an
+untracked `src-tauri/gen/android/app/keystore.properties` (`storeFile`, `storePassword`,
+`keyAlias`, `keyPassword`) works too.
+
+On Android, "stay logged in" keeps the token encrypted with an Android Keystore key, files from
+the pickers are `content://` URIs opened through `GfcNativePlugin.kt`, downloads and backups go to
+Download/, teasers to Movies/GFC, and sharing uses the system share sheet.
+
 ## Testing against a local test net
 
 Never post or transfer on the live node while testing. Run a node locally with a
