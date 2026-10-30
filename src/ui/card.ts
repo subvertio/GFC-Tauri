@@ -4,7 +4,7 @@ import { api, kindOf, titleFromBody, KIND_LABEL, type Seed } from "../api";
 import { avatarFor, go, openUser, askToVerify } from "../app";
 import { session } from "../session";
 import { h, clear, timeAgo, fmtCount } from "./dom";
-import { lazyModel } from "../viewer3d";
+import { lazyModel } from "../lazy3d";
 import { moreMenu, toggleLike, toggleBookmark, shareLink, onSeedChange, editHistory } from "./actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "./exclusive";
 import { trackPlayer, pauseWhenOffscreen } from "./media";
@@ -47,7 +47,7 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
       ));
   };
   render();
-  disposers.push(onSeedChange(s.id, () => {
+  const unsubscribe = onSeedChange(s.id, () => {
     // Keep a playing video or live 3D view; only refresh the counts and text
     const media = el.querySelector(".media");
     if (media && media.querySelector("video,audio,canvas")) {
@@ -55,10 +55,10 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
       row?.replaceWith(actionRow(s));
       return;
     }
-    for (const d of disposers.splice(1)) d();
+    for (const d of disposers.splice(0)) d();
     render();
-  }));
-  return { el, dispose: () => disposers.forEach((d) => d()) };
+  });
+  return { el, dispose: () => { unsubscribe(); disposers.forEach((d) => d()); } };
 }
 
 function unlockLink(s: Seed, kind: string, access: ReturnType<typeof exclusiveAccess>) {

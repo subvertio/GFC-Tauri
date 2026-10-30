@@ -5,7 +5,8 @@ import { api, kindOf, titleFromBody, KIND_LABEL, ApiError, type Seed } from "../
 import { registerScreen, back, go, avatarFor, openUser, askToVerify, type Route } from "../app";
 import { session } from "../session";
 import { h, clear, timeAgo, fmtBytes, toast } from "../ui/dom";
-import { ModelView } from "../viewer3d";
+import { load3d } from "../lazy3d";
+import type { ModelView } from "../viewer3d";
 import { moreMenu, toggleLike, toggleBookmark, shareOnX, copyText, onSeedChange, seedChanged, editHistory, openExternal } from "../ui/actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "../ui/exclusive";
 import { trackPlayer, trackVisible, reportPlayed } from "../ui/media";
@@ -107,11 +108,14 @@ registerScreen("seed", (route, page) => {
       const reset = h("button.btn.secondary.small.corner", { title: "Reset view (or double-click)" }, "Reset view");
       box.append(reset);
       el.append(box, h("div.muted.small", { style: "margin-top:4px" }, "Drag to orbit · Ctrl + wheel to zoom · right-drag to pan · double-click to reset"));
-      model = new ModelView(box, { onStatus: (m) => (note.textContent = m) });
       reset.onclick = () => model?.resetView();
       let reported = false;
       const report = () => !reported && ((reported = true), reportPlayed(s, true));
-      model.load(api.media(s.full)).then(() => {
+      load3d().then((m) => {
+        if (!alive) throw new Error("left");
+        model = new m.ModelView(box, { onStatus: (t) => (note.textContent = t) });
+        return model.load(api.media(s.full));
+      }).then(() => {
         if (!alive) return;
         disposers.push(trackVisible(box, s, 3000, true));
         model?.canvas.addEventListener("pointerdown", report, { once: true });

@@ -4,7 +4,7 @@
 import { api, kindOf, KIND_LABEL, type Seed } from "./api";
 import { session } from "./session";
 import { h, clear, sheet, toast } from "./ui/dom";
-import { sweepModels } from "./viewer3d";
+import { sweepModels } from "./lazy3d";
 import { stopAllMedia } from "./ui/media";
 
 export type FeedSource = "foryou" | "explore" | "bookmarks" | "mine" | "user";
@@ -64,10 +64,10 @@ function show(r: Route, restoreScroll = false) {
   scrollMemory.set(routeKey(current), centre.scrollTop);
   if (typeof cleanup === "function") cleanup();
   cleanup = undefined;
-  stopAllMedia();
   current = r;
   const page = h("div.screen");
   clear(centre, page);
+  stopAllMedia(); // pauses, and lets go of players that just left the page
   centre.scrollTop = 0;
   sweepModels();
   const s = screens.get(r.name);

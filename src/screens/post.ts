@@ -6,7 +6,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { api, inTauri, titleFromBody, ApiError, type UploadResult } from "../api";
 import { registerScreen, back, go, askToVerify, type Route } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
-import { ModelView, BUDGET } from "../viewer3d";
+import { load3d } from "../lazy3d";
+import type { ModelView } from "../viewer3d";
 import { copyText, openExternal } from "../ui/actions";
 import { celebrate, checkEarnings } from "../earnings";
 
@@ -123,6 +124,7 @@ registerScreen("post", (route, page) => {
       } else if (isModel(p)) {
         const box = h("div.media.model", { style: "max-height:320px" }, h("div.note", "Building the 3D preview…"));
         prev.append(box);
+        const { ModelView, BUDGET } = await load3d();
         if (p.size > BUDGET.bytes) throw new Error(`over the ${BUDGET.bytes / 1048576} MB limit`);
         model = new ModelView(box, { onStatus: () => {} });
         const res = await model.loadBytes(await readPicked(p, BUDGET.bytes));
