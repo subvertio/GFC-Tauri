@@ -338,3 +338,7 @@ button.follow:disabled { opacity: .6; }
 .inline-comments .comment { padding: 6px 0; }
 .comment-reply { gap: 8px; margin: 8px 0; }
 .comment-reply input { flex: 1; }
+
+/* Connect another site */
+.connect-code { margin-top: 16px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+.connect-code .code { font: 700 30px/1.2 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .06em; user-select: all; }

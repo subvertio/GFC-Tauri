@@ -337,6 +337,14 @@ export class GfcApi {
   bookmark(id: string) {
     return this.request<{ bookmarked: boolean }>("POST", `/seeds/${encodeURIComponent(id)}/bookmark`, { auth: "required" });
   }
+  connectPartners() {
+    return this.request<{ partners: { id: string; name: string }[] }>("GET", "/connect/partners");
+  }
+  /** A one-time code that tells a partner site this is a (phone-verified) GFC member. */
+  connectCode(partner: string) {
+    return this.request<{ code: string; partner: string; name: string; expiresIn: number }>("POST", "/connect/code",
+      { auth: "required", form: { partner } });
+  }
   adMarket() {
     return this.request<AdMarket>("GET", "/ads/market");
   }

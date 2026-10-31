@@ -9,6 +9,7 @@ import "./screens/post";
 import "./screens/batch";
 import "./screens/profile-edit";
 import "./screens/ads";
+import "./screens/connect";
 import "./screens/wallet";
 
 async function boot() {
