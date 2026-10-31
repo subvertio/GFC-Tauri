@@ -320,3 +320,7 @@ button.follow:disabled { opacity: .6; }
 .batch-row > input[type=checkbox] { width: auto; margin-top: 10px; }
 .batch-row .batch-name { margin: 2px 0 4px; overflow-wrap: anywhere; }
 .batch-row .progress { margin: 4px 0; }
+
+/* Tips (e.g. start OneDrive) */
+.tip { margin: 8px 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #ffad1f; background: rgba(255, 173, 31, .08); color: var(--text); line-height: 1.5; }
+.tip.ok { border-color: var(--success, #00ba7c); background: rgba(0, 186, 124, .08); }

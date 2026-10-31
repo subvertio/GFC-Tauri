@@ -11,6 +11,7 @@ import { load3d } from "../lazy3d";
 import type { ModelView } from "../viewer3d";
 import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
+import { oneDriveMissing, oneDriveTip, isOneDriveError } from "../ui/onedrive";
 
 export interface Picked {
   id: string; name: string; size: number; mime: string;
@@ -138,7 +139,10 @@ registerScreen("post", (route, page) => {
     }
     try {
       const p = await invoke<Picked | null>("pick_file", { kind });
-      if (p) await usePicked(p);
+      if (p) {
+        await usePicked(p);
+        if (p.online_only && await oneDriveMissing([p.id])) mediaPanel.prepend(oneDriveTip());
+      }
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -237,6 +241,7 @@ registerScreen("post", (route, page) => {
     } catch (e) {
       const msg = String((e as Error).message ?? e);
       clear(resultEl, h("div", { class: /cancel/i.test(msg) ? "muted" : "danger" }, msg));
+      if (picked && isOneDriveError(msg) && await oneDriveMissing([picked.id])) resultEl.append(oneDriveTip());
       if (e instanceof ApiError && e.status === 403 && /phone/i.test(msg)) askToVerify(msg);
     } finally {
       uploading = false;

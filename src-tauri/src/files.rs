@@ -119,6 +119,28 @@ fn onedrive_running() -> bool {
     true
 }
 
+/// For the OneDrive tip: is the OneDrive app running now?
+#[tauri::command]
+pub fn onedrive_status() -> bool {
+    onedrive_running()
+}
+
+/// The tip's Start OneDrive button: open the OneDrive app (per-user or per-machine install).
+#[tauri::command]
+pub fn start_onedrive() -> Result<(), String> {
+    let candidates: Vec<PathBuf> = [
+        ("LOCALAPPDATA", r"Microsoft\OneDrive\OneDrive.exe"),
+        ("ProgramFiles", r"Microsoft OneDrive\OneDrive.exe"),
+        ("ProgramFiles(x86)", r"Microsoft OneDrive\OneDrive.exe"),
+    ]
+    .iter()
+    .filter_map(|(var, rel)| std::env::var_os(var).map(|base| PathBuf::from(base).join(rel)))
+    .collect();
+    let exe = candidates.into_iter().find(|p| p.is_file())
+        .ok_or("OneDrive isn't installed here. Install it from Microsoft, or move the videos out of OneDrive.")?;
+    std::process::Command::new(exe).spawn().map(|_| ()).map_err(|e| format!("Couldn't start OneDrive: {e}"))
+}
+
 const ONEDRIVE_NOT_RUNNING: &str = "OneDrive isn't running, so this video can't be downloaded from the cloud.     Start OneDrive (Start menu, then OneDrive), wait until it's signed in, then press Post again.";
 
 /// For the batch screen: true when some picked files are online-only in OneDrive but the

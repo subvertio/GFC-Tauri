@@ -17,6 +17,8 @@ pub fn run() {
             files::pick_videos,
             files::make_available,
             files::onedrive_missing,
+            files::onedrive_status,
+            files::start_onedrive,
             files::debug_pick_path,
             files::read_picked,
             files::forget_picked,
