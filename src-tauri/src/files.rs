@@ -283,8 +283,10 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
 /// Video types the node posts as videos (app_seeds.CONTENT_TYPE_MAP).
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "webm", "mkv", "m4v", "avi", "wmv", "flv"];
 /// The most videos one batch takes (a folder with more lists the first ones, by name).
+#[cfg_attr(target_os = "android", allow(dead_code))] // batch upload is desktop-only
 const MAX_BATCH: usize = 100;
 
+#[cfg_attr(target_os = "android", allow(dead_code))] // batch upload is desktop-only
 fn is_video_path(p: &std::path::Path) -> bool {
     p.extension().and_then(|e| e.to_str()).map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
 }
@@ -309,33 +311,39 @@ pub fn video_info(picked: State<'_, Picked>, id: String) -> Option<crate::videoi
 /// the app skips them. None if the user cancelled.
 #[tauri::command]
 pub async fn pick_videos<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>, mode: String) -> Result<Option<Vec<PickedFile>>, String> {
-    if cfg!(target_os = "android") {
-        return Err("batch upload is in the Windows app".into());
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, picked, mode);
+        Err("batch upload is in the Windows app".into())
     }
-    let mut paths: Vec<PathBuf> = Vec::new();
-    if mode == "folder" {
-        // Ctrl- or Shift-click picks several folders
-        let Some(dirs) = app.dialog().file().set_title("Choose one or more folders of videos").blocking_pick_folders() else { return Ok(None) };
-        for dir in dirs {
-            let dir = dir.into_path().map_err(|_| "this folder can't be opened here".to_string())?;
-            paths.extend(videos_in(&dir)?);
-        }
-    } else {
-        let Some(files) = app.dialog().file().set_title("Choose videos (Ctrl-click or Shift-click to pick several)")
-            .add_filter("Videos", VIDEO_EXTENSIONS).blocking_pick_files() else { return Ok(None) };
-        for f in files {
-            if let Ok(p) = f.into_path() {
-                if is_video_path(&p) {
-                    paths.push(p);
+    #[cfg(not(target_os = "android"))]
+    {
+        let mut paths: Vec<PathBuf> = Vec::new();
+        if mode == "folder" {
+            // Ctrl- or Shift-click picks several folders (folder picking is desktop-only)
+            let Some(dirs) = app.dialog().file().set_title("Choose one or more folders of videos").blocking_pick_folders() else { return Ok(None) };
+            for dir in dirs {
+                let dir = dir.into_path().map_err(|_| "this folder can't be opened here".to_string())?;
+                paths.extend(videos_in(&dir)?);
+            }
+        } else {
+            let Some(files) = app.dialog().file().set_title("Choose videos (Ctrl-click or Shift-click to pick several)")
+                .add_filter("Videos", VIDEO_EXTENSIONS).blocking_pick_files() else { return Ok(None) };
+            for f in files {
+                if let Ok(p) = f.into_path() {
+                    if is_video_path(&p) {
+                        paths.push(p);
+                    }
                 }
             }
         }
+        paths.truncate(MAX_BATCH);
+        paths.into_iter().map(|p| picked_path(&picked, p)).collect::<Result<Vec<_>, _>>().map(Some)
     }
-    paths.truncate(MAX_BATCH);
-    paths.into_iter().map(|p| picked_path(&picked, p)).collect::<Result<Vec<_>, _>>().map(Some)
 }
 
 /// The videos directly in `dir` (not in subfolders), sorted by name, at most MAX_BATCH.
+#[cfg_attr(target_os = "android", allow(dead_code))] // batch upload is desktop-only
 fn videos_in(dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
     let mut paths = Vec::new();
     for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
