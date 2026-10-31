@@ -100,6 +100,23 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
+## 0.2.2 (2026-10-31): Windows
+
+Windows only. Android stays 0.2.1 until a signed 0.2.2 build is made and published.
+
+**New**
+
+- **GFC Ads** (node: GFCCoin PR #61):
+  - **Promote this post (ad)** in a post's ••• menu: a budget, a max price per 1,000 views
+    (the live market rate is shown, with the views the budget buys), 1-30 days, and which wallet pays;
+  - **Your ads** in the left rail and the ••• menu: views, spend, what creators were paid, and Stop ad
+    (the unspent budget comes back at once);
+  - **Sponsored** posts in For you, one after every 8 posts, kept right under the post the node placed
+    them after. That post's creator is paid 70% of each counted view, instantly. A view is reported once
+    the ad has been 60% on screen for 1 second.
+- **Comment bubble** (💬 and the count) on every post. It opens the post's comments under it, with a
+  reply box; replies show at once.
+
 ## 0.2.1 (2026-10-31)
 
 Published: Windows 2026-10-31 16:39 UTC (3.1 MB zip), Android 2026-10-31 16:48 UTC (10.6 MB APK).
