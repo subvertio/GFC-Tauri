@@ -34,6 +34,9 @@ export function downloadBox(s: Seed): HTMLElement {
   else if (d.status === "clean") {
     status.append(h("div.success", `✓ Scanned by ${scannerName(d.engine)}${scanDate(d.scanned_at) ? ` on ${scanDate(d.scanned_at)}` : ""}`));
   } else if (d.status === "unavailable") status.append(h("div", { style: "color:#ffad1f" }, "Not virus-scanned: this test node has no scanner."));
+  // "error" is the scanner failing (e.g. restarting), not a detection: the node tries again
+  else if (d.status === "error") status.append(h("div", { style: "color:#ffad1f" },
+    "The virus scanner couldn't check this file yet. GFC tries again automatically; the download opens when it passes."));
   else status.append(h("div.danger", "This download didn't pass the safety check."));
   if (ready && d.sha256) status.append(h("div.mono.muted", { title: "SHA-256 of the zip" }, `SHA-256 ${d.sha256}`));
 
