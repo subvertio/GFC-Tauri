@@ -92,6 +92,46 @@ fn is_cloud_error(code: i32) -> bool {
     (358..=404).contains(&code) || code == 426
 }
 
+/// Whether `path` is inside a OneDrive folder (personal or work), from OneDrive's own
+/// environment variables.
+fn in_onedrive(path: &std::path::Path) -> bool {
+    ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"].iter().filter_map(std::env::var_os).any(|root| {
+        let root = PathBuf::from(root);
+        !root.as_os_str().is_empty() && path.starts_with(&root)
+    })
+}
+
+/// Is the OneDrive app running? Without it, reading an online-only file fails, and Windows
+/// pops up "The cloud file provider exited unexpectedly".
+#[cfg(windows)]
+fn onedrive_running() -> bool {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq OneDrive.exe", "/NH", "/FO", "CSV"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_ascii_lowercase().contains("onedrive.exe"))
+        .unwrap_or(true) // can't tell: let Windows try
+}
+#[cfg(not(windows))]
+fn onedrive_running() -> bool {
+    true
+}
+
+const ONEDRIVE_NOT_RUNNING: &str = "OneDrive isn't running, so this video can't be downloaded from the cloud.     Start OneDrive (Start menu, then OneDrive), wait until it's signed in, then press Post again.";
+
+/// For the batch screen: true when some picked files are online-only in OneDrive but the
+/// OneDrive app isn't running (so they can't be posted until it is).
+#[tauri::command]
+pub fn onedrive_missing(picked: State<'_, Picked>, ids: Vec<String>) -> bool {
+    let needs = ids.iter().filter_map(|id| picked.get(id).ok()).any(|e| match &e.source {
+        Source::Path(p) => in_onedrive(p) && std::fs::metadata(p).map(|m| is_online_only(&m)).unwrap_or(false),
+        Source::Uri(_) => false,
+    });
+    needs && !onedrive_running()
+}
+
 /// An I/O error as something a person can act on.
 fn friendly_io(e: &std::io::Error) -> String {
     match e.raw_os_error() {
@@ -288,6 +328,10 @@ pub async fn make_available<R: Runtime>(
     let meta = std::fs::metadata(path).map_err(|e| friendly_io(&e))?;
     if !is_online_only(&meta) {
         return Ok(());
+    }
+    // Don't even try: Windows would show its own error box for every file
+    if in_onedrive(path) && !onedrive_running() {
+        return Err(ONEDRIVE_NOT_RUNNING.into());
     }
     let cancel = Arc::new(AtomicBool::new(false));
     picked.cancels.lock().unwrap().insert(upload_id.clone(), cancel.clone());
@@ -712,6 +756,14 @@ mod batch_tests {
         std::fs::write(&p, b"x").unwrap();
         assert!(!is_online_only(&std::fs::metadata(&p).unwrap()));
         let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn onedrive_folders_are_recognised() {
+        let root = std::env::temp_dir().join("gfc-fake-onedrive");
+        std::env::set_var("OneDriveConsumer", &root);
+        assert!(in_onedrive(&root.join("Videos").join("clip.mp4")));
+        assert!(!in_onedrive(&std::env::temp_dir().join("elsewhere.mp4")));
     }
 
     #[test]

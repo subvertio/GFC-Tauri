@@ -124,7 +124,11 @@ registerScreen("batch", (_route, page) => {
       }
       return r;
     });
-    clear(list, rows.map((r) => h("div.batch-row",
+    const missing = await invoke<boolean>("onedrive_missing", { ids: rows.map((r) => r.file.id) }).catch(() => false);
+    clear(list, missing ? h("div.notice.danger", { style: "margin-bottom:8px" },
+      "Some of these videos are only in OneDrive's cloud, and OneDrive isn't running, so they can't be posted yet. "
+      + "Start OneDrive (Start menu, then OneDrive), wait until it's signed in, then press Post.") : null,
+    rows.map((r) => h("div.batch-row",
       r.include,
       h("div.grow", r.title, h("div.muted.small.batch-name", r.file.name), r.bar, r.status))));
     refresh();
