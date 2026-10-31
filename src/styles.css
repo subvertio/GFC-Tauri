@@ -313,3 +313,10 @@ button.follow.on:hover { color: var(--danger, #f4212e); border-color: currentCol
 button.follow:disabled { opacity: .6; }
 .profile-head .counts { margin-top: 6px; }
 .profile-head .counts b { color: var(--text); }
+
+/* Batch upload */
+.batch-list { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.batch-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.batch-row > input[type=checkbox] { width: auto; margin-top: 10px; }
+.batch-row .batch-name { margin: 2px 0 4px; overflow-wrap: anywhere; }
+.batch-row .progress { margin: 4px 0; }

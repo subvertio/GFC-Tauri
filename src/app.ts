@@ -12,6 +12,7 @@ export type Route =
   | { name: "feed"; src: FeedSource; q?: string; user?: string }
   | { name: "seed"; id: string; seed?: Seed }
   | { name: "post"; text?: string; pick?: "media" | "file" }
+  | { name: "batch" }
   | { name: "wallet" }
   | { name: "login"; back?: Route };
 

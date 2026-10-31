@@ -6,6 +6,7 @@ import "./screens/feed";
 import "./screens/login";
 import "./screens/detail";
 import "./screens/post";
+import "./screens/batch";
 import "./screens/wallet";
 
 async function boot() {

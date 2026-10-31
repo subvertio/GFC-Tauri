@@ -12,25 +12,25 @@ import type { ModelView } from "../viewer3d";
 import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
 
-interface Picked { id: string; name: string; size: number; mime: string }
-const MAX_UPLOAD = 200 * 1024 * 1024;
+export interface Picked { id: string; name: string; size: number; mime: string }
+export const MAX_UPLOAD = 200 * 1024 * 1024;
 const VIDEO_EXT = ["mp4", "mov", "webm", "mkv", "avi", "wmv", "flv"];
 const ext = (n: string) => n.split(".").pop()!.toLowerCase();
 const isVideo = (p: Picked) => p.mime.startsWith("video/") || VIDEO_EXT.includes(ext(p.name));
 const isImage = (p: Picked) => p.mime.startsWith("image/");
 const isModel = (p: Picked) => ["glb", "gltf"].includes(ext(p.name));
 const isZipFile = (p: Picked) => ext(p.name) === "zip";
-const PREVIEW_LENGTHS = [5, 10, 30];
+export const PREVIEW_LENGTHS = [5, 10, 30];
 // The preview (and its first-frame thumbnail) reads the clip into memory: less on phones
-const VIDEO_PREVIEW_MAX = (isAndroid ? 40 : 120) * 1024 * 1024;
+export const VIDEO_PREVIEW_MAX = (isAndroid ? 40 : 120) * 1024 * 1024;
 
 let uploading = false;
 
-async function readPicked(p: Picked, max: number): Promise<ArrayBuffer> {
+export async function readPicked(p: Picked, max: number): Promise<ArrayBuffer> {
   return invoke<ArrayBuffer>("read_picked", { id: p.id, maxBytes: max });
 }
 
-function canvasJpeg(src: CanvasImageSource, w: number, hgt: number, quality: number): Promise<Blob | null> {
+export function canvasJpeg(src: CanvasImageSource, w: number, hgt: number, quality: number): Promise<Blob | null> {
   const scale = Math.min(1, 512 / Math.max(w, hgt));
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(w * scale));
@@ -296,7 +296,10 @@ registerScreen("post", (route, page) => {
   page.append(
     h("div.pagehead", h("div.title",
       h("button.iconbtn", { title: "Back", style: "font-size:20px", onclick: back }, "←"),
-      h("h1.grow", "New post"), headerPost)),
+      h("h1.grow", "New post"),
+      inTauri && !isAndroid ? h("button.btn.secondary.small", { title: "Upload many videos at once, from a folder",
+        onclick: () => go({ name: "batch" }) }, "Batch upload") : null,
+      headerPost)),
     h("div.page",
       h("label", "Title"), title,
       h("label", "Text"), text,

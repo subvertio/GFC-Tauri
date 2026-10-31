@@ -81,6 +81,8 @@ fn mime_for(name: &str) -> &'static str {
         "webm" => "video/webm",
         "mkv" => "video/x-matroska",
         "avi" => "video/x-msvideo",
+        "wmv" => "video/x-ms-wmv",
+        "flv" => "video/x-flv",
         "mp3" => "audio/mpeg",
         "wav" => "audio/wav",
         "ogg" | "oga" => "audio/ogg",
@@ -177,6 +179,56 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
         let _ = uri;
         Err("this file can't be opened here".into())
     }
+}
+
+/// Video types the node posts as videos (app_seeds.CONTENT_TYPE_MAP).
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "webm", "mkv", "m4v", "avi", "wmv", "flv"];
+/// The most videos one batch takes (a folder with more lists the first ones, by name).
+const MAX_BATCH: usize = 100;
+
+fn is_video_path(p: &std::path::Path) -> bool {
+    p.extension().and_then(|e| e.to_str()).map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
+}
+
+/// Batch upload (desktop): every video in a folder the user picks ("folder", top level only,
+/// sorted by name), or several videos picked at once ("files"). Too-big files are listed too;
+/// the app skips them. None if the user cancelled.
+#[tauri::command]
+pub async fn pick_videos<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>, mode: String) -> Result<Option<Vec<PickedFile>>, String> {
+    if cfg!(target_os = "android") {
+        return Err("batch upload is in the Windows app".into());
+    }
+    let mut paths: Vec<PathBuf> = Vec::new();
+    if mode == "folder" {
+        let Some(dir) = app.dialog().file().set_title("Choose a folder of videos").blocking_pick_folder() else { return Ok(None) };
+        let dir = dir.into_path().map_err(|_| "this folder can't be opened here".to_string())?;
+        paths = videos_in(&dir)?;
+    } else {
+        let Some(files) = app.dialog().file().add_filter("Videos", VIDEO_EXTENSIONS).blocking_pick_files() else { return Ok(None) };
+        for f in files {
+            if let Ok(p) = f.into_path() {
+                if is_video_path(&p) {
+                    paths.push(p);
+                }
+            }
+        }
+    }
+    paths.truncate(MAX_BATCH);
+    paths.into_iter().map(|p| picked_path(&picked, p)).collect::<Result<Vec<_>, _>>().map(Some)
+}
+
+/// The videos directly in `dir` (not in subfolders), sorted by name, at most MAX_BATCH.
+fn videos_in(dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let p = entry.map_err(|e| e.to_string())?.path();
+        if p.is_file() && is_video_path(&p) {
+            paths.push(p);
+        }
+    }
+    paths.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+    paths.truncate(MAX_BATCH);
+    Ok(paths)
 }
 
 fn picked_path(picked: &Picked, path: PathBuf) -> Result<PickedFile, String> {
@@ -548,5 +600,37 @@ fn progress_stream(
 pub fn cancel_upload(picked: State<'_, Picked>, upload_id: String) {
     if let Some(c) = picked.cancels.lock().unwrap().get(&upload_id) {
         c.store(true, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_lists_its_videos_by_name_and_nothing_else() {
+        let dir = std::env::temp_dir().join(format!("gfc-batch-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        for name in ["b clip.MP4", "a.mov", "notes.txt", "cover.jpg", "c.webm", "sub/inner.mp4"] {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+        std::fs::create_dir_all(dir.join("folder.mp4")).unwrap(); // a folder named like a video
+        let names: Vec<String> = videos_in(&dir).unwrap().iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
+        assert_eq!(names, ["a.mov", "b clip.MP4", "c.webm"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_batch_stops_at_the_limit() {
+        let dir = std::env::temp_dir().join(format!("gfc-batch-limit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..(MAX_BATCH + 5) {
+            std::fs::write(dir.join(format!("v{i:03}.mp4")), b"x").unwrap();
+        }
+        assert_eq!(videos_in(&dir).unwrap().len(), MAX_BATCH);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
