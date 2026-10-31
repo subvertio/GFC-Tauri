@@ -75,7 +75,8 @@ registerScreen("feed", (route, page) => {
       const showFollowers = (n: number) => clear(followers, h("b", String(n)), ` follower${n === 1 ? "" : "s"}`);
       showFollowers(p.followers ?? 0);
       const counts = h("div.muted.small.counts", followers, " · ", h("b", String(p.following ?? 0)), " following");
-      const button = r.src === "user" ? followButton(p.username, disposers, { onCount: showFollowers }) : null;
+      const button = r.src === "user" ? followButton(p.username, disposers, { onCount: showFollowers })
+        : h("button.btn.secondary.small", { style: "align-self:center", onclick: () => go({ name: "editprofile" }) }, "Edit profile");
       clear(head, h("div.row", avatarFor(p.username, p.avatar, true),
         h("div.grow", h("h1", full || p.username), h("div.muted", `@${p.username}`), p.bio ? h("div.text", p.bio) : null, counts),
         button));

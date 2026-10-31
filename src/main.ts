@@ -7,6 +7,7 @@ import "./screens/login";
 import "./screens/detail";
 import "./screens/post";
 import "./screens/batch";
+import "./screens/profile-edit";
 import "./screens/wallet";
 
 async function boot() {

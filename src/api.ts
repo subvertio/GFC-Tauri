@@ -149,6 +149,8 @@ type Query = Record<string, string | number | undefined>;
 interface ReqOpts {
   auth?: "required" | "optional" | "none";
   form?: Record<string, string | number | boolean | undefined>;
+  /** Files and fields as multipart/form-data (the boundary header is set from it) */
+  multipart?: FormData;
   json?: unknown;
   query?: Query;
   signal?: AbortSignal;
@@ -201,8 +203,10 @@ export class GfcApi {
     }
     const headers: Record<string, string> = { Accept: "application/json" };
     if (auth !== "none" && this.token) headers.Authorization = `Bearer ${this.token}`;
-    let body: string | undefined;
-    if (o.json !== undefined) {
+    let body: string | FormData | undefined;
+    if (o.multipart) {
+      body = o.multipart;
+    } else if (o.json !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(o.json);
     } else if (o.form) {
@@ -300,6 +304,15 @@ export class GfcApi {
   }
   me() {
     return this.request<Profile>("GET", "/users/me", { auth: "required" });
+  }
+  updateProfile(fields: { first_name: string; last_name: string; bio: string }) {
+    return this.request<Profile>("POST", "/users/me", { auth: "required", form: fields });
+  }
+  /** A new profile photo (JPEG, PNG, GIF or WebP, up to 5 MB). Returns its address. */
+  uploadAvatar(image: Blob, fileName = "avatar.jpg") {
+    const fd = new FormData();
+    fd.append("avatar", image, fileName);
+    return this.request<{ avatar: string }>("POST", "/users/me/avatar", { auth: "required", multipart: fd });
   }
   seed(id: string) {
     return this.request<Seed>("GET", `/seeds/${encodeURIComponent(id)}`);

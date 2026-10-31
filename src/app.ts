@@ -13,6 +13,7 @@ export type Route =
   | { name: "seed"; id: string; seed?: Seed }
   | { name: "post"; text?: string; pick?: "media" | "file" }
   | { name: "batch" }
+  | { name: "editprofile" }
   | { name: "wallet" }
   | { name: "login"; back?: Route };
 
@@ -195,11 +196,13 @@ async function accountMenu() {
     h("div", h("h2", `@${session.user}`), h("div.muted.small", `Node: ${nodeLabel()}`),
       h("div.btns",
         h("button.btn.secondary.block", { onclick: () => close("mine") }, "Your posts"),
+        h("button.btn.secondary.block", { onclick: () => close("editprofile") }, "Edit profile"),
         h("button.btn.secondary.block", { onclick: () => close("wallet") }, "Wallet"),
         h("button.btn.danger.block", { onclick: () => close("logout") }, `Log out @${session.user}`),
         h("button.btn.secondary.block", { onclick: () => close() }, "Cancel"))),
   );
   if (choice === "mine") go({ name: "feed", src: "mine" });
+  else if (choice === "editprofile") go({ name: "editprofile" });
   else if (choice === "wallet") go({ name: "wallet" });
   else if (choice === "logout") {
     toast("Logging out…");
