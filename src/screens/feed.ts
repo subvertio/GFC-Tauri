@@ -1,10 +1,18 @@
-// Feed pages: For you, Explore (search), Bookmarks, your posts, someone else's posts.
+// Feed pages: For you, Following, Bookmarks (the three home tabs), Explore (search), your posts,
+// someone else's posts (with a Follow button).
 
 import { api, type Seed } from "../api";
 import { registerScreen, go, back, avatarFor, whenAllowedToPost, setTrending, type Route } from "../app";
 import { session } from "../session";
 import { h, clear } from "../ui/dom";
 import { seedCard, visibleToMe, type CardHandle } from "../ui/card";
+import { followButton, noteFollowing } from "../ui/follow";
+
+const HOME_TABS: { src: "foryou" | "following" | "bookmarks"; label: string }[] = [
+  { src: "foryou", label: "For you" },
+  { src: "following", label: "Following" },
+  { src: "bookmarks", label: "Bookmarks" },
+];
 
 /** Keep the node's order, but never more than `maxRun` posts in a row by one creator. */
 export function mixCreators(items: Seed[], maxRun = 2): Seed[] {
@@ -28,15 +36,18 @@ registerScreen("feed", (route, page) => {
   const r = route as Extract<Route, { name: "feed" }>;
   const serial = ++loadSerial;
   const cards: CardHandle[] = [];
+  const disposers: (() => void)[] = [];
   const list = h("div");
   const status = h("div.empty", "Loading the feed…");
 
   // Header
   let header: HTMLElement;
-  if (r.src === "foryou") {
-    header = h("div.pagehead", h("div.tabs", h("button.active", { onclick: () => go(r, { replace: true }) }, h("span", "For you"))));
+  if (r.src === "foryou" || r.src === "following" || r.src === "bookmarks") {
+    header = h("div.pagehead", h("div.tabs", ...HOME_TABS.map((t) =>
+      h(t.src === r.src ? "button.active" : "button", { onclick: () => go({ name: "feed", src: t.src }, { replace: true }) },
+        h("span", t.label)))));
   } else {
-    const title = r.src === "explore" ? "Explore" : r.src === "bookmarks" ? "Bookmarks" : r.src === "mine" ? session.user : r.user!;
+    const title = r.src === "explore" ? "Explore" : r.src === "mine" ? session.user : r.user!;
     const sub = r.src === "mine" ? `@${session.user}` : r.src === "user" ? `@${r.user}` : "";
     header = h("div.pagehead", h("div.title",
       h("button.iconbtn", { title: "Back", style: "font-size:20px", onclick: back }, "←"),
@@ -55,11 +66,19 @@ registerScreen("feed", (route, page) => {
     const name = r.src === "mine" ? session.user : r.user!;
     const head = h("div.profile-head", h("div.row", avatarFor(name, null, true), h("div", h("h1", name), h("div.muted", `@${name}`))));
     page.append(head);
-    (r.src === "mine" ? api.me() : api.user(name)).then((p) => {
+    api.user(name).then(async (p) => {
       if (serial !== loadSerial) return;
+      if (r.src === "mine") p = { ...p, ...(await api.me().catch(() => ({}))) };
+      noteFollowing(p.username, p.followed_by_me);
       const full = [p.first_name, p.last_name].filter(Boolean).join(" ");
+      const followers = h("span");
+      const showFollowers = (n: number) => clear(followers, h("b", String(n)), ` follower${n === 1 ? "" : "s"}`);
+      showFollowers(p.followers ?? 0);
+      const counts = h("div.muted.small.counts", followers, " · ", h("b", String(p.following ?? 0)), " following");
+      const button = r.src === "user" ? followButton(p.username, disposers, { onCount: showFollowers }) : null;
       clear(head, h("div.row", avatarFor(p.username, p.avatar, true),
-        h("div.grow", h("h1", full || p.username), h("div.muted", `@${p.username}`), p.bio ? h("div.text", p.bio) : null)));
+        h("div.grow", h("h1", full || p.username), h("div.muted", `@${p.username}`), p.bio ? h("div.text", p.bio) : null, counts),
+        button));
     }).catch(() => {});
   }
 
@@ -80,15 +99,18 @@ registerScreen("feed", (route, page) => {
 
   page.append(list, status);
 
-  const needsLogin = (r.src === "bookmarks" || r.src === "mine") && !session.loggedIn;
+  const needsLogin = (r.src === "bookmarks" || r.src === "following" || r.src === "mine") && !session.loggedIn;
   if (needsLogin) {
-    status.textContent = "Log in to see this page.";
+    clear(status, h("div", r.src === "following" ? "Log in to follow creators and see their posts here."
+      : r.src === "bookmarks" ? "Log in to keep posts in your Bookmarks." : "Log in to see this page."),
+      h("button.btn.small", { style: "margin-top:12px", onclick: () => go({ name: "login", back: r }) }, "Log in"));
     return;
   }
 
   const load = async (): Promise<Seed[]> => {
     switch (r.src) {
       case "foryou": return api.feed();
+      case "following": return api.followingFeed();
       case "explore":
         if (r.q) return api.search(r.q);
         return (await api.feed()).sort((a, b) => b.likes - a.likes || b.views - a.views).slice(0, 50);
@@ -127,7 +149,7 @@ registerScreen("feed", (route, page) => {
       h("button.btn.secondary.small", { style: "margin-top:12px", onclick: () => go(r, { replace: true }) }, "Try again"));
   });
 
-  return () => cards.forEach((c) => c.dispose());
+  return () => { cards.forEach((c) => c.dispose()); disposers.forEach((d) => d()); };
 });
 
 function emptyText(r: Extract<Route, { name: "feed" }>, n: number): string {
@@ -136,6 +158,7 @@ function emptyText(r: Extract<Route, { name: "feed" }>, n: number): string {
     case "explore":
       if (!r.q) return n ? "Top posts on this node. Search by title, text, tag or creator." : "Nothing here yet. Seeds appear as creators upload them.";
       return n ? `${n} result${n === 1 ? "" : "s"} for "${r.q}"` : `No results for "${r.q}".`;
+    case "following": return n ? `${n} posts from creators you follow` : "You're not following anyone yet. Tap Follow on a post or a creator's profile, and their posts show up here.";
     case "bookmarks": return n ? `${n} bookmarked` : "Nothing bookmarked yet. Use the star on a post to keep it here.";
     case "mine": return n ? `${n} posts` : "You haven't posted yet.";
     case "user": return n ? `${n} posts` : `@${r.user} has no posts to show.`;

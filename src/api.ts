@@ -50,6 +50,7 @@ export interface Seed {
   reward_wallet?: string;
   liked?: boolean;
   bookmarked?: boolean;
+  following?: boolean;  // the viewer follows this post's creator
   repost_of?: RepostOf | null;
   exclusive?: boolean;
   teaser?: string | null;
@@ -57,7 +58,10 @@ export interface Seed {
   teaser_seconds?: number;
   download?: Download;
 }
-export interface Profile { username: string; first_name?: string; last_name?: string; bio?: string; avatar?: string | null; created_at?: string }
+export interface Profile {
+  username: string; first_name?: string; last_name?: string; bio?: string; avatar?: string | null; created_at?: string;
+  followers?: number; following?: number; followed_by_me?: boolean;
+}
 export interface Tx {
   id: string; sender: string; recipient: string; amount: number; amount_cents?: number; reason: string;
   timestamp: string; tx_hash?: string; tx_type?: string; block_index?: number | null;
@@ -273,6 +277,15 @@ export class GfcApi {
   async search(q: string) {
     return (await this.request<{ seeds: Seed[] }>("GET", "/search", { auth: "optional", query: { q } })).seeds ?? [];
   }
+  async followingFeed() {
+    return (await this.request<{ items: Seed[] }>("GET", "/feed/following", { auth: "required" })).items ?? [];
+  }
+  follow(name: string) {
+    return this.request<{ followed_by_me: boolean; followers: number }>("POST", `/users/${encodeURIComponent(name)}/follow`, { auth: "required" });
+  }
+  unfollow(name: string) {
+    return this.request<{ followed_by_me: boolean; followers: number }>("DELETE", `/users/${encodeURIComponent(name)}/follow`, { auth: "required" });
+  }
   async bookmarks() {
     return (await this.request<{ items: Seed[] }>("GET", "/bookmarks", { auth: "required" })).items ?? [];
   }
@@ -283,7 +296,7 @@ export class GfcApi {
     return (await this.request<{ items: Seed[] }>("GET", `/users/${encodeURIComponent(name)}/seeds`, { auth: "optional" })).items ?? [];
   }
   user(name: string) {
-    return this.request<Profile>("GET", `/users/${encodeURIComponent(name)}`);
+    return this.request<Profile>("GET", `/users/${encodeURIComponent(name)}`, { auth: "optional" });
   }
   me() {
     return this.request<Profile>("GET", "/users/me", { auth: "required" });

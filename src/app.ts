@@ -7,7 +7,7 @@ import { h, clear, sheet, toast } from "./ui/dom";
 import { sweepModels } from "./lazy3d";
 import { stopAllMedia } from "./ui/media";
 
-export type FeedSource = "foryou" | "explore" | "bookmarks" | "mine" | "user";
+export type FeedSource = "foryou" | "following" | "explore" | "bookmarks" | "mine" | "user";
 export type Route =
   | { name: "feed"; src: FeedSource; q?: string; user?: string }
   | { name: "seed"; id: string; seed?: Seed }

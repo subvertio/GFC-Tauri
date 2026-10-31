@@ -2,6 +2,7 @@
 
 import { api, kindOf, titleFromBody, KIND_LABEL, type Seed } from "../api";
 import { avatarFor, go, openUser, askToVerify } from "../app";
+import { followButton, noteFollowing } from "./follow";
 import { session } from "../session";
 import { h, clear, timeAgo, fmtCount } from "./dom";
 import { lazyModel } from "../lazy3d";
@@ -21,6 +22,7 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
   const kind = kindOf(s);
   const disposers: (() => void)[] = [];
   const el = h("article.card", { dataset: { id: s.id, owner: s.owner } });
+  noteFollowing(s.owner, s.following);
   el.addEventListener("click", (e) => {
     if ((e.target as Element).closest("button,a,video,audio,canvas,.no-open")) return;
     go({ name: "seed", id: s.id, seed: s });
@@ -31,11 +33,12 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
     const isAutoTitle = kind === "text" && s.title === titleFromBody(s.description || "");
     const body = (s.description || "").trim();
     clear(el,
-      h("div", { onclick: () => openUser(s.owner) }, avatarFor(s.owner, s.owner_avatar)),
+      h("div.no-open", { onclick: () => openUser(s.owner) }, avatarFor(s.owner, s.owner_avatar)),
       h("div.post",
         h("div.who",
-          h("span.name", { onclick: () => openUser(s.owner) }, s.owner),
+          h("span.name.no-open", { onclick: () => openUser(s.owner) }, s.owner),
           h("span.handle", `@${s.owner} · ${timeAgo(s.created_at)}`),
+          followButton(s.owner, disposers, { small: true }),
           s.edited_at ? h("a.small", { href: "#", style: "margin-left:4px;color:var(--text-2)", onclick: (e: Event) => { e.preventDefault(); editHistory(s); } }, "· Edited") : null,
           h("button.iconbtn.more", { title: "More", onclick: () => moreMenu(s, () => onHidden(s.id)) }, "•••")),
         s.repost_of ? h("div.repost", `Repost of @${s.repost_of.owner}. Credit goes to the original.`) : null,

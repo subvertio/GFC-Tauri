@@ -173,8 +173,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .avatar.big { width: 96px; height: 96px; font-size: 36px; }
 .post { flex: 1; min-width: 0; }
 .who { display: flex; gap: 4px; align-items: baseline; min-width: 0; white-space: nowrap; }
-.who .name { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
-.who .handle { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+.who .name { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; max-width: 50%; }
+/* The @handle gives way first, so the name and the Follow button stay readable on phones */
+.who .handle { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; flex: 0 100 auto; min-width: 0; }
 .who .name:hover { text-decoration: underline; cursor: pointer; }
 .who .more { margin-left: auto; }
 .card h3 { margin: 2px 0 4px; font-size: 16px; }
@@ -300,3 +301,15 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
    model (OrbitControls sets touch-action: none inline, hence !important). The post screen
    keeps every gesture for the model. */
 .card .media.model canvas { touch-action: pan-y !important; }
+
+/* Follow buttons (feed cards and profiles) */
+button.follow {
+  flex: none; border: 1px solid var(--text); background: var(--text); color: var(--bg); border-radius: 999px;
+  font-weight: 700; padding: 6px 16px; cursor: pointer; align-self: center;
+}
+button.follow.small { padding: 1px 10px; font-size: 12px; margin-left: 6px; align-self: baseline; }
+button.follow.on { background: transparent; color: var(--text); border-color: var(--border-strong); }
+button.follow.on:hover { color: var(--danger, #f4212e); border-color: currentColor; }
+button.follow:disabled { opacity: .6; }
+.profile-head .counts { margin-top: 6px; }
+.profile-head .counts b { color: var(--text); }

@@ -11,6 +11,7 @@ import { moreMenu, toggleLike, toggleBookmark, shareOnX, copyText, onSeedChange,
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "../ui/exclusive";
 import { trackPlayer, trackVisible, reportPlayed } from "../ui/media";
 import { downloadBox } from "../ui/download";
+import { followButton, noteFollowing } from "../ui/follow";
 
 registerScreen("seed", (route, page) => {
   const r = route as Extract<Route, { name: "seed" }>;
@@ -28,7 +29,10 @@ registerScreen("seed", (route, page) => {
   const body = h("div.page", h("div.muted", "Loading the post…"));
   page.append(head, body);
 
+  let follow: HTMLElement | null | undefined;  // made once: show() runs again when the post changes
   const show = (s: Seed) => {
+    noteFollowing(s.owner, s.following);
+    if (follow === undefined) follow = followButton(s.owner, disposers);
     const kind = kindOf(s);
     const access = exclusiveAccess(s);
     const preview = h("div");
@@ -63,6 +67,7 @@ registerScreen("seed", (route, page) => {
         h("div.grow", h("div.who", h("span.name", { onclick: () => openUser(s.owner) }, s.owner)),
           h("div.muted.small", `@${s.owner} · ${timeAgo(s.created_at)}`,
             s.edited_at ? h("a", { href: "#", style: "color:var(--text-2)", onclick: (e: Event) => { e.preventDefault(); editHistory(s); } }, " · Edited") : null)),
+        follow,
         h("button.iconbtn", { title: "More", onclick: () => moreMenu(s, back) }, "•••")),
       s.repost_of ? h("div.repost", `Repost of @${s.repost_of.owner}. Credit goes to the original.`) : null,
       s.exclusive ? h("span.badge.exclusive", EXCLUSIVE_BADGE) : null,
