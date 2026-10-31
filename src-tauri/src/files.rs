@@ -22,10 +22,11 @@ use tauri::{ipc::Channel, AppHandle, Manager, Runtime, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_http::reqwest;
 
-/// The public gateway's request limit.
-pub const MAX_UPLOAD_BYTES: u64 = 200 * 1024 * 1024;
-/// The largest download the app saves (the gateway takes uploads up to 200 MB).
-const MAX_DOWNLOAD_BYTES: u64 = 256 * 1024 * 1024;
+/// The largest post the node takes (config.MAX_UPLOAD_BYTES): 1 GB. Files are streamed, never
+/// read whole into memory.
+pub const MAX_UPLOAD_BYTES: u64 = 1024 * 1024 * 1024;
+/// The largest download the app saves (posts are up to 1 GB).
+const MAX_DOWNLOAD_BYTES: u64 = 1100 * 1024 * 1024;
 const MAX_TEASER_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Where a picked file lives: a path (desktop), or a content:// URI (Android).
@@ -663,7 +664,7 @@ async fn upload_inner<R: Runtime>(
         let entry = picked.get(&id)?;
         let (file, len) = open_entry(app, &entry)?;
         if len + 64 * 1024 > MAX_UPLOAD_BYTES {
-            return Err(format!("This file is {:.0} MB; uploads are limited to 200 MB.", len as f64 / 1048576.0));
+            return Err(format!("This file is {:.0} MB; posts can be up to 1 GB.", len as f64 / 1048576.0));
         }
         let name: String = entry.name.chars().filter(|c| !matches!(c, '"' | '\r' | '\n')).collect();
         let name = if name.is_empty() { "upload.bin".to_string() } else { name };

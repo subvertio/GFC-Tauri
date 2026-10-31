@@ -236,7 +236,7 @@ registerScreen("batch", (_route, page) => {
       h("button.iconbtn", { title: "Back", style: "font-size:20px", onclick: back }, "←"),
       h("h1.grow", "Batch upload"))),
     h("div.page",
-      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos, 200 MB each."),
+      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos, 1 GB each."),
       h("p.muted.small", "Videos in OneDrive: use Choose a folder. Online-only videos then download one at a time while posting, "
         + "instead of all at once in the Windows file picker."),
       h("div.row.wrap", { style: "gap:8px" },

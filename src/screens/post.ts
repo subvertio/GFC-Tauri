@@ -18,7 +18,8 @@ export interface Picked {
   /** OneDrive "Available when online": downloaded from the cloud before it's posted */
   online_only?: boolean;
 }
-export const MAX_UPLOAD = 200 * 1024 * 1024;
+/** The node's limit (1 GB). Big videos get their thumbnail from the node. */
+export const MAX_UPLOAD = 1024 * 1024 * 1024;
 const VIDEO_EXT = ["mp4", "mov", "webm", "mkv", "avi", "wmv", "flv"];
 const ext = (n: string) => n.split(".").pop()!.toLowerCase();
 const isVideo = (p: Picked) => p.mime.startsWith("video/") || VIDEO_EXT.includes(ext(p.name));
@@ -160,7 +161,11 @@ registerScreen("post", (route, page) => {
     clear(mediaPanel, prev, h("div.row", { style: "margin-top:8px" }, h("div.grow", info),
       h("button.btn.secondary.small", { onclick: dropMedia }, "Remove")));
     mediaPanel.classList.remove("hidden");
-    if (tooBig()) info.append(h("div.danger", "Too big: uploads are limited to 200 MB. Trim the video and try again."));
+    if (tooBig()) info.append(h("div.danger", "Too big: posts can be up to 1 GB. Trim the video and try again."));
+    else if (isVideo(p) && p.size >= VIDEO_PREVIEW_MAX) {
+      info.append(h("div.muted", "A big video: no preview here, and GFC makes its thumbnail after it's posted. "
+        + "Uploading 1 GB takes a while on a slow connection: keep the app open until it's done."));
+    }
     update();
     try {
       if (isImage(p) && p.size < 40 * 1024 * 1024) {
