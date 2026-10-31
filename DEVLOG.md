@@ -73,6 +73,7 @@ scp '.\Packaged\GFC-<version>-arm64-release.apk' gfc-node:/tmp/GFC-<version>.apk
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\check-downloads.ps1 -Version <version>
+# or, when only one app was released:  -Windows <version> -Android <current android version>
 ```
 
 The script checks the node's versions, that the files served match the ones in `Packaged\` byte
@@ -102,7 +103,11 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ## 0.2.2 (2026-10-31): Windows
 
-Windows only. Android stays 0.2.1 until a signed 0.2.2 build is made and published.
+Published: Windows 2026-10-31 17:46 UTC (3.1 MB zip). Windows only: Android stays 0.2.1 until a
+signed 0.2.2 build is made and published. Checked with `check-downloads.ps1 -Windows 0.2.2 -Android 0.2.1`.
+
+- Downloads: a virus-scanner error (the scanner restarting) now says it's being retried, not that the file failed
+  (node: GFCCoin PR #62 retries after 1, 5 and 15 minutes).
 
 **New**
 

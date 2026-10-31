@@ -1,13 +1,17 @@
 # After publishing a release (DEVLOG.md, step 6): does every download location serve it?
 #   powershell -ExecutionPolicy Bypass -File .\scripts\check-downloads.ps1 -Version 0.2.1
+#   ... -Windows 0.2.2 -Android 0.2.1      when the two apps are on different versions
 # Checks the node's published versions, that they're byte for byte the files in Packaged\ (by
 # SHA-256), and that the web feed and the white paper link to the node. Read-only.
 param(
-    [Parameter(Mandatory = $true)][string]$Version,
+    [string]$Version = '',
+    [string]$Windows = $Version,
+    [string]$Android = $Version,
     [string]$Node = 'https://node.galacticfederation.tech',
     [string]$Site = 'https://www.galacticfederation.tech'
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Windows -or -not $Android) { throw 'Give -Version, or both -Windows and -Android' }
 $root = Split-Path $PSScriptRoot -Parent
 $packaged = Join-Path $root 'Packaged'
 $failed = 0
@@ -24,22 +28,22 @@ function LocalHash([string]$pattern) {
     return $null
 }
 
-Write-Host "GFC $Version download locations" -ForegroundColor Cyan
+Write-Host "GFC download locations: Windows $Windows, Android $Android" -ForegroundColor Cyan
 
 Write-Host 'Node (the one place installers are published):'
 $win = Invoke-RestMethod "$Node/app/windows.json"
 $apk = Invoke-RestMethod "$Node/app/release.json"
-Check "Windows published: $($win.version)" ($win.version -eq $Version)
-Check "Android published: $($apk.version)" ($apk.version -eq $Version)
-$localWin = LocalHash "GFC-Setup-$Version-Windows.zip"
-$localApk = LocalHash "GFC-$Version-arm64-release.apk"
+Check "Windows published: $($win.version)" ($win.version -eq $Windows)
+Check "Android published: $($apk.version)" ($apk.version -eq $Android)
+$localWin = LocalHash "GFC-Setup-$Windows-Windows.zip"
+$localApk = LocalHash "GFC-$Android-arm64-release.apk"
 if ($localWin) { Check 'Windows download is the file in Packaged\' ($win.sha256 -eq $localWin) "(node $($win.sha256.Substring(0,16)), local $($localWin.Substring(0,16)))" }
-else { Write-Host "  --    no Packaged\GFC-Setup-$Version-Windows.zip here to compare" }
+else { Write-Host "  --    no Packaged\GFC-Setup-$Windows-Windows.zip here to compare" }
 if ($localApk) { Check 'Android download is the file in Packaged\' ($apk.sha256 -eq $localApk) "(node $($apk.sha256.Substring(0,16)), local $($localApk.Substring(0,16)))" }
-else { Write-Host "  --    no Packaged\GFC-$Version-arm64-release.apk here to compare" }
+else { Write-Host "  --    no Packaged\GFC-$Android-arm64-release.apk here to compare" }
 Check 'Android signed with the release key' ($apk.cert_sha256 -replace ':', '' -eq '323133E4E13E4FC0F65F28D745B9EE6C1799401408D8F6D0E73EE5E721EB725C')
 $page = (Invoke-WebRequest "$Node/app" -UseBasicParsing).Content
-Check 'Download page shows the version' ($page -match "Version $([regex]::Escape($Version))")
+Check 'Download page shows both versions' (($page -match "Version $([regex]::Escape($Windows))") -and ($page -match "Version $([regex]::Escape($Android))"))
 
 Write-Host 'Web feed and share pages:'
 $web = (Invoke-WebRequest "$Node/web" -UseBasicParsing -Headers @{ Accept = 'text/html' }).Content
@@ -56,4 +60,4 @@ Write-Host "        open $Site and hover Download for Windows and Download the a
 Write-Host "        they should go to $Node/app/windows and $Node/app/android" -ForegroundColor Yellow
 
 if ($failed) { Write-Host "$failed check(s) failed" -ForegroundColor Red; exit 1 }
-Write-Host "All checks passed for $Version" -ForegroundColor Green
+Write-Host "All checks passed (Windows $Windows, Android $Android)" -ForegroundColor Green
