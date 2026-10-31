@@ -259,7 +259,7 @@ registerScreen("batch", (_route, page) => {
       h("button.iconbtn", { title: "Back", style: "font-size:20px", onclick: back }, "←"),
       h("h1.grow", "Batch upload"))),
     h("div.page",
-      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos at a time. Videos over 1 GB are fine when GFC can optimise them to 1 GB (it checks first)."),
+      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos at a time. Videos can be up to 5 GB, or up to 8 GB when GFC can optimise them to 5 GB (it checks first)."),
       h("p.muted.small", "Videos in OneDrive: use Add folders. Online-only videos then download one at a time while posting, "
         + "instead of all at once in the Windows file picker."),
       h("div.row.wrap", { style: "gap:8px" },

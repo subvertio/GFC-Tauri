@@ -22,14 +22,14 @@ use tauri::{ipc::Channel, AppHandle, Manager, Runtime, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_http::reqwest;
 
-/// The largest post the node keeps (config.MAX_UPLOAD_BYTES): 1 GB. Files are streamed, never
+/// The largest post the node keeps (config.MAX_UPLOAD_BYTES): 5 GB. Files are streamed, never
 /// read whole into memory.
-pub const MAX_POST_BYTES: u64 = 1024 * 1024 * 1024;
-/// Videos can be uploaded up to 4 GB (config.MAX_VIDEO_UPLOAD_BYTES) when the node's optimised
+pub const MAX_POST_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+/// Videos can be uploaded up to 8 GB (config.MAX_VIDEO_UPLOAD_BYTES) when the node's optimised
 /// copy will fit MAX_POST_BYTES; the app checks with video_info first, the node again.
-pub const MAX_UPLOAD_BYTES: u64 = 4 * 1024 * 1024 * 1024;
-/// The largest download the app saves (posts are up to 1 GB).
-const MAX_DOWNLOAD_BYTES: u64 = 1100 * 1024 * 1024;
+pub const MAX_UPLOAD_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+/// The largest download the app saves (posts are up to 5 GB).
+const MAX_DOWNLOAD_BYTES: u64 = 5200 * 1024 * 1024;
 const MAX_TEASER_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Where a picked file lives: a path (desktop), or a content:// URI (Android).
@@ -686,12 +686,12 @@ async fn upload_inner<R: Runtime>(
         let entry = picked.get(&id)?;
         let (file, len) = open_entry(app, &entry)?;
         if len + 64 * 1024 > MAX_UPLOAD_BYTES {
-            return Err(format!("This file is {:.1} GB; videos can be uploaded up to 4 GB.", len as f64 / 1073741824.0));
+            return Err(format!("This file is {:.1} GB; videos can be uploaded up to 8 GB.", len as f64 / 1073741824.0));
         }
         let is_video = std::path::Path::new(&entry.name).extension().and_then(|e| e.to_str())
             .map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false);
         if !is_video && len + 64 * 1024 > MAX_POST_BYTES {
-            return Err(format!("This file is {:.1} GB; posts can be up to 1 GB.", len as f64 / 1073741824.0));
+            return Err(format!("This file is {:.1} GB; posts can be up to 5 GB.", len as f64 / 1073741824.0));
         }
         let name: String = entry.name.chars().filter(|c| !matches!(c, '"' | '\r' | '\n')).collect();
         let name = if name.is_empty() { "upload.bin".to_string() } else { name };
