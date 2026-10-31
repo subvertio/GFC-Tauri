@@ -14,6 +14,8 @@ export type Route =
   | { name: "post"; text?: string; pick?: "media" | "file" }
   | { name: "batch" }
   | { name: "editprofile" }
+  | { name: "promote"; seedId: string; seed?: Seed }
+  | { name: "ads" }
   | { name: "wallet" }
   | { name: "login"; back?: Route };
 
@@ -140,6 +142,7 @@ const NAV: { id: string; glyph: string; label: string; login?: boolean; route: (
   { id: "explore", glyph: "#", label: "Explore", route: () => ({ name: "feed", src: "explore" }), active: (r) => r.name === "feed" && r.src === "explore" },
   { id: "bookmarks", glyph: "☆", label: "Bookmarks", login: true, route: () => ({ name: "feed", src: "bookmarks" }), active: (r) => r.name === "feed" && r.src === "bookmarks" },
   { id: "wallet", glyph: "¤", label: "Wallet", login: true, route: () => ({ name: "wallet" }), active: (r) => r.name === "wallet" },
+  { id: "ads", glyph: "◆", label: "Your ads", login: true, route: () => ({ name: "ads" }), active: (r) => r.name === "ads" || r.name === "promote" },
   { id: "profile", glyph: "@", label: "Profile", login: true, route: () => ({ name: "feed", src: "mine" }), active: (r) => r.name === "feed" && r.src === "mine" },
 ];
 
@@ -197,12 +200,14 @@ async function accountMenu() {
       h("div.btns",
         h("button.btn.secondary.block", { onclick: () => close("mine") }, "Your posts"),
         h("button.btn.secondary.block", { onclick: () => close("editprofile") }, "Edit profile"),
+        h("button.btn.secondary.block", { onclick: () => close("ads") }, "Your ads"),
         h("button.btn.secondary.block", { onclick: () => close("wallet") }, "Wallet"),
         h("button.btn.danger.block", { onclick: () => close("logout") }, `Log out @${session.user}`),
         h("button.btn.secondary.block", { onclick: () => close() }, "Cancel"))),
   );
   if (choice === "mine") go({ name: "feed", src: "mine" });
   else if (choice === "editprofile") go({ name: "editprofile" });
+  else if (choice === "ads") go({ name: "ads" });
   else if (choice === "wallet") go({ name: "wallet" });
   else if (choice === "logout") {
     toast("Logging out…");

@@ -30,6 +30,20 @@ export function mixCreators(items: Seed[], maxRun = 2): Seed[] {
   return out;
 }
 
+/**
+ * Put each ad right under the post the node placed it after: that post's creator is the one
+ * its views pay (the post id is in the ad's signed token), so it must be the one shown above it.
+ */
+export function placeAds(posts: Seed[], adItems: Seed[]): Seed[] {
+  const out = posts.slice();
+  for (const ad of adItems) {
+    const above = ad.ad!.token.split("|")[2];
+    const at = out.findIndex((s) => s.id === above && !s.ad);
+    if (at >= 0) out.splice(at + 1, 0, ad);
+  }
+  return out;
+}
+
 let loadSerial = 0;
 
 registerScreen("feed", (route, page) => {
@@ -125,7 +139,7 @@ registerScreen("feed", (route, page) => {
     if (serial !== loadSerial) return;
     if (r.src === "foryou") setTrending(items);
     let shown = items.filter(visibleToMe);
-    if (r.src === "foryou") shown = mixCreators(shown);
+    if (r.src === "foryou") shown = placeAds(mixCreators(shown.filter((s) => !s.ad)), shown.filter((s) => s.ad));
     // A report hides that post; a block hides every post by that account
     const onHidden = () => {
       for (let i = cards.length - 1; i >= 0; i--) {

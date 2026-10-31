@@ -4,6 +4,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, inTauri, kindOf, titleFromBody, type Seed } from "../api";
 import { session } from "../session";
+import { go } from "../app";
 import { h, sheet, toast, confirmSheet, timeAgo, clear } from "./dom";
 
 export async function copyText(text: string): Promise<boolean> {
@@ -112,6 +113,7 @@ export async function moreMenu(s: Seed, onHidden: () => void) {
   const choice = await sheet<string>((close) =>
     h("div", h("div.btns", { style: "margin-top:0" },
       mine ? [
+        h("button.btn.secondary.block", { onclick: () => close("promote") }, "Promote this post (ad)"),
         h("button.btn.secondary.block", { onclick: () => close("edit") }, "Edit post"),
         s.edited_at ? h("button.btn.secondary.block", { onclick: () => close("history") }, "Edit history") : null,
       ] : [
@@ -120,7 +122,8 @@ export async function moreMenu(s: Seed, onHidden: () => void) {
       ],
       h("button.btn.secondary.block", { onclick: () => close() }, "Cancel"))),
   );
-  if (choice === "edit") editPost(s);
+  if (choice === "promote") go({ name: "promote", seedId: s.id, seed: s });
+  else if (choice === "edit") editPost(s);
   else if (choice === "history") editHistory(s);
   else if (choice === "report") {
     const reason = await sheet<string>((close) =>

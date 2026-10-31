@@ -324,3 +324,17 @@ button.follow:disabled { opacity: .6; }
 /* Tips (e.g. start OneDrive) */
 .tip { margin: 8px 0; padding: 12px 14px; border-radius: 12px; border: 1px solid #ffad1f; background: rgba(255, 173, 31, .08); color: var(--text); line-height: 1.5; }
 .tip.ok { border-color: var(--success, #00ba7c); background: rgba(0, 186, 124, .08); }
+
+/* Ads */
+.sponsored { flex: none; margin-left: 6px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  color: #ffd400; border: 1px solid rgba(255, 212, 0, .5); align-self: baseline; }
+.ad-form label { margin-top: 12px; }
+.ad-estimate { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); line-height: 1.6; }
+.ad-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ad-row .stats { color: var(--text-2); font-size: 14px; line-height: 1.6; }
+
+/* Comments under a post in the feed */
+.inline-comments { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.inline-comments .comment { padding: 6px 0; }
+.comment-reply { gap: 8px; margin: 8px 0; }
+.comment-reply input { flex: 1; }

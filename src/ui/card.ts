@@ -4,9 +4,9 @@ import { api, kindOf, titleFromBody, KIND_LABEL, type Seed } from "../api";
 import { avatarFor, go, openUser, askToVerify } from "../app";
 import { followButton, noteFollowing } from "./follow";
 import { session } from "../session";
-import { h, clear, timeAgo, fmtCount } from "./dom";
+import { h, clear, timeAgo, fmtCount, toast } from "./dom";
 import { lazyModel } from "../lazy3d";
-import { moreMenu, toggleLike, toggleBookmark, shareLink, onSeedChange, editHistory } from "./actions";
+import { moreMenu, toggleLike, toggleBookmark, shareLink, onSeedChange, seedChanged, editHistory } from "./actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "./exclusive";
 import { trackPlayer, pauseWhenOffscreen } from "./media";
 import { downloadBox } from "./download";
@@ -38,6 +38,7 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
         h("div.who",
           h("span.name.no-open", { onclick: () => openUser(s.owner) }, s.owner),
           h("span.handle", `@${s.owner} · ${timeAgo(s.created_at)}`),
+          s.ad ? h("span.sponsored", { title: "A creator paid GFC to show this post. 70% of it goes to creators." }, s.ad.label) : null,
           followButton(s.owner, disposers, { small: true }),
           s.edited_at ? h("a.small", { href: "#", style: "margin-left:4px;color:var(--text-2)", onclick: (e: Event) => { e.preventDefault(); editHistory(s); } }, "· Edited") : null,
           h("button.iconbtn.more", { title: "More", onclick: () => moreMenu(s, () => onHidden(s.id)) }, "•••")),
@@ -47,16 +48,26 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
         body ? h("div.text", truncate(body, kind === "text" ? 600 : 200)) : null,
         mediaFor(s, kind, access, disposers),
         unlockLink(s, kind, access),
-        actionRow(s),
+        actionRow(s, () => toggleComments()),
+        commentsBox,
       ));
   };
+  // The comment bubble opens the post's comments right under it (latest first, and a reply box)
+  const commentsBox = h("div.inline-comments.hidden");
+  let commentsOpen = false;
+  const toggleComments = () => {
+    commentsOpen = !commentsOpen;
+    commentsBox.classList.toggle("hidden", !commentsOpen);
+    if (commentsOpen) renderInlineComments(s, commentsBox);
+  };
   render();
+  if (s.ad) disposers.push(reportAdWhenSeen(el, s.ad.token));
   const unsubscribe = onSeedChange(s.id, () => {
     // Keep a playing video or live 3D view; only refresh the counts and text
     const media = el.querySelector(".media");
     if (media && media.querySelector("video,audio,canvas")) {
       const row = el.querySelector(".actions");
-      row?.replaceWith(actionRow(s));
+      row?.replaceWith(actionRow(s, () => toggleComments()));
       return;
     }
     for (const d of disposers.splice(0)) d();
@@ -80,10 +91,68 @@ function unlockLink(s: Seed, kind: string, access: ReturnType<typeof exclusiveAc
   return null;
 }
 
-function actionRow(s: Seed) {
+/** An ad counts (and pays the creator above it) once it's been at least 60% on screen for a second. */
+function reportAdWhenSeen(el: Element, token: string): () => void {
+  let timer = 0;
+  const obs = new IntersectionObserver(([e]) => {
+    clearTimeout(timer);
+    if (e.isIntersecting && e.intersectionRatio >= 0.6 && !document.hidden) {
+      timer = window.setTimeout(() => {
+        obs.disconnect();
+        if (session.loggedIn) api.adView(token).catch(() => {});
+      }, 1000);
+    }
+  }, { threshold: [0, 0.6] });
+  obs.observe(el);
+  return () => { clearTimeout(timer); obs.disconnect(); };
+}
+
+const COMMENT_BUBBLE = "💬";
+
+/** The latest comments under a post in the feed, a reply box, and a link to all of them. */
+function renderInlineComments(s: Seed, box: HTMLElement) {
+  const list = h("div", h("div.muted.small", "Loading comments…"));
+  const input = h("input", { placeholder: session.loggedIn ? "Write a comment…" : "Log in to comment", maxlength: 1000,
+    disabled: !session.loggedIn }) as HTMLInputElement;
+  const send = h("button.btn.small", { disabled: true }, "Reply") as HTMLButtonElement;
+  input.addEventListener("input", () => (send.disabled = !input.value.trim()));
+  const row = (c: { owner: string; text: string; created_at: string }) => h("div.comment",
+    h("div.who", h("span.name.no-open", { onclick: () => openUser(c.owner) }, c.owner), h("span.handle", `@${c.owner} · ${timeAgo(c.created_at)}`)),
+    h("div.text", c.text));
+  const submit = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    send.disabled = input.disabled = true;
+    try {
+      const res = await api.comment(s.id, text);
+      input.value = "";
+      s.comments = res.comment_count;
+      list.querySelector(".none")?.remove();
+      list.prepend(row(res.comment));
+      seedChanged(s);
+    } catch (e) {
+      toast(String((e as Error).message ?? e), true);
+    } finally {
+      input.disabled = false;
+    }
+  };
+  send.onclick = submit;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  clear(box, list,
+    session.loggedIn ? h("div.row.comment-reply", input, send) : h("button.btn.secondary.small", { onclick: () => go({ name: "login" }) }, "Log in to comment"),
+    h("a.small", { href: "#", onclick: (e: Event) => { e.preventDefault(); go({ name: "seed", id: s.id, seed: s }); } }, "Open the post"));
+  api.comments(s.id).then((items) => {
+    const shown = items.filter((c) => !session.isHiddenForMe({ id: "", owner: c.owner })).slice(0, 5);
+    clear(list, shown.length ? shown.map(row) : h("div.muted.small.none", "No comments yet. Be the first."),
+      items.length > shown.length ? h("a.small", { href: "#", onclick: (e: Event) => { e.preventDefault(); go({ name: "seed", id: s.id, seed: s }); } },
+        `View all ${s.comments || items.length} comments`) : null);
+  }).catch(() => clear(list, h("div.muted.small", "Couldn't load comments.")));
+}
+
+function actionRow(s: Seed, onComments: () => void = () => go({ name: "seed", id: s.id, seed: s })) {
   const n = (x: number) => (x ? fmtCount(x) : "");
   return h("div.actions",
-    h("button.iconbtn", { title: "Comments", onclick: () => go({ name: "seed", id: s.id, seed: s }) }, "↩", n(s.comments)),
+    h("button.iconbtn.comments", { title: "Comments", onclick: onComments }, COMMENT_BUBBLE, n(s.comments)),
     h("button.iconbtn.like", { class: s.liked ? "on" : "", title: s.liked ? "Unlike" : "Like", onclick: () => toggleLike(s) }, s.liked ? "♥" : "♡", n(s.likes)),
     h("span.iconbtn", { title: "Views" }, "⊙", n(s.views)),
     h("span.iconbtn", { title: "GFC this post has earned its creator", class: s.gfc_earned > 0 ? "gold" : "" }, "¤", s.gfc_earned > 0 ? `${s.gfc_earned.toFixed(2)} GFC` : ""),

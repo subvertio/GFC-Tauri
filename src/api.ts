@@ -51,6 +51,8 @@ export interface Seed {
   liked?: boolean;
   bookmarked?: boolean;
   following?: boolean;  // the viewer follows this post's creator
+  /** A promoted post in the For you feed: report its view with the token once it's been seen */
+  ad?: { campaign: string; label: string; token: string };
   repost_of?: RepostOf | null;
   exclusive?: boolean;
   teaser?: string | null;
@@ -58,6 +60,18 @@ export interface Seed {
   teaser_seconds?: number;
   download?: Download;
 }
+export interface AdMarket {
+  price_per_1000_views: number; floor_per_1000_views: number; active_ads: number;
+  views_per_15_min: number; views_wanted_per_15_min: number; creator_share: number;
+  ad_every: number; max_days: number; min_budget: number;
+}
+export interface AdCampaign {
+  id: string; seed_id: string; wallet: string; status: "active" | "ended" | "cancelled";
+  budget: number; max_cpm: number; spent: number; remaining: number; views: number;
+  paid_to_creators: number; avg_cpm: number | null; starts_at: string; ends_at: string;
+  ended_at?: string | null; refund?: number | null;
+}
+
 export interface Profile {
   username: string; first_name?: string; last_name?: string; bio?: string; avatar?: string | null; created_at?: string;
   followers?: number; following?: number; followed_by_me?: boolean;
@@ -322,6 +336,23 @@ export class GfcApi {
   }
   bookmark(id: string) {
     return this.request<{ bookmarked: boolean }>("POST", `/seeds/${encodeURIComponent(id)}/bookmark`, { auth: "required" });
+  }
+  adMarket() {
+    return this.request<AdMarket>("GET", "/ads/market");
+  }
+  myAds() {
+    return this.request<{ campaigns: AdCampaign[]; market: AdMarket }>("GET", "/ads/campaigns", { auth: "required" });
+  }
+  createAd(a: { seedId: string; walletId: string; budget: number; maxCpm: number; days: number }) {
+    return this.request<AdCampaign>("POST", "/ads/campaigns", { auth: "required", form: {
+      seed_id: a.seedId, wallet_id: a.walletId, budget: a.budget, max_cpm: a.maxCpm, days: a.days } });
+  }
+  cancelAd(id: string) {
+    return this.request<AdCampaign>("POST", `/ads/campaigns/${encodeURIComponent(id)}/cancel`, { auth: "required" });
+  }
+  /** Report that an ad was on screen: a counted view pays the creator of the post above it. */
+  adView(token: string) {
+    return this.request<{ counted: boolean; creator_paid?: number; why?: string }>("POST", "/ads/view", { auth: "required", form: { token } });
   }
   async comments(id: string, offset = 0) {
     return (await this.request<{ items: Comment[] }>("GET", `/seeds/${encodeURIComponent(id)}/comments`, { query: { limit: 50, offset } })).items ?? [];
