@@ -1,4 +1,5 @@
 mod files;
+mod videoinfo;
 mod native;
 mod secure_store;
 
@@ -19,6 +20,7 @@ pub fn run() {
             files::onedrive_missing,
             files::onedrive_status,
             files::start_onedrive,
+            files::video_info,
             files::debug_pick_path,
             files::read_picked,
             files::forget_picked,

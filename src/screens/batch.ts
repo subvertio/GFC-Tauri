@@ -8,7 +8,8 @@ import { registerScreen, back, go, askToVerify, whenAllowedToPost } from "../app
 import { h, clear, toast, fmtBytes } from "../ui/dom";
 import { celebrate, checkEarnings } from "../earnings";
 import { oneDriveMissing, oneDriveTip, isOneDriveError } from "../ui/onedrive";
-import { canvasJpeg, readPicked, MAX_UPLOAD, PREVIEW_LENGTHS, VIDEO_PREVIEW_MAX, type Picked } from "./post";
+import { canvasJpeg, readPicked, PREVIEW_LENGTHS, VIDEO_PREVIEW_MAX, type Picked } from "./post";
+import { checkVideoSize } from "../ui/videosize";
 
 type Status = "waiting" | "uploading" | "posted" | "failed" | "skipped" | "cancelled";
 
@@ -92,6 +93,16 @@ registerScreen("batch", (_route, page) => {
     r.status.textContent = text;
   };
 
+  const render = async () => {
+    const missing = await oneDriveMissing(rows.map((r) => r.file.id));
+    clear(list, missing ? oneDriveTip() : null,
+      rows.map((r) => h("div.batch-row",
+        r.include,
+        h("div.grow", r.title, h("div.muted.small.batch-name", r.file.name), r.bar, r.status))));
+    refresh();
+  };
+
+  /** Each pick adds to the list (the same file twice is listed once); Clear empties it. */
   const choose = async (mode: "folder" | "files") => {
     if (running) return;
     let files: Picked[] | null;
@@ -101,13 +112,15 @@ registerScreen("batch", (_route, page) => {
       return toast(String(e), true);
     }
     if (!files) return;
-    for (const r of rows) invoke("forget_picked", { id: r.file.id }).catch(() => {});
-    if (!files.length) {
-      rows = [];
-      clear(list, h("div.empty", mode === "folder" ? "No videos in that folder (MP4, MOV, WebM, MKV, AVI…)." : "No videos picked."));
-      return refresh();
+    const seen = new Set(rows.map((r) => `${r.file.name}|${r.file.size}`));
+    const fresh = files.filter((f) => !seen.has(`${f.name}|${f.size}`));
+    for (const f of files) if (!fresh.includes(f)) invoke("forget_picked", { id: f.id }).catch(() => {});
+    if (!fresh.length) {
+      toast(files.length ? "Those videos are already in the list." : mode === "folder"
+        ? "No videos in that folder (MP4, MOV, WebM, MKV, AVI…)." : "No videos picked.");
+      return;
     }
-    rows = files.map((file) => {
+    for (const file of fresh) {
       const r: Row = {
         file,
         include: h("input", { type: "checkbox", checked: true }) as HTMLInputElement,
@@ -117,19 +130,25 @@ registerScreen("batch", (_route, page) => {
         state: "waiting",
       };
       r.include.addEventListener("change", refresh);
-      if (file.size + 64 * 1024 > MAX_UPLOAD) {
+      const check = await checkVideoSize(file);
+      if (!check.ok) {
         r.include.checked = false;
-        setStatus(r, "skipped", `Too big: ${fmtBytes(file.size)} (the limit is ${fmtBytes(MAX_UPLOAD)})`, "danger");
+        setStatus(r, "skipped", check.note, "danger");
       } else {
-        setStatus(r, "waiting", file.online_only ? `${fmtBytes(file.size)} · ☁ in OneDrive: downloads when it's posted` : fmtBytes(file.size));
+        const base = check.note || fmtBytes(file.size);
+        setStatus(r, "waiting", file.online_only ? `${base} · ☁ in OneDrive: downloads when it's posted` : base);
       }
-      return r;
-    });
-    const missing = await oneDriveMissing(rows.map((r) => r.file.id));
-    clear(list, missing ? oneDriveTip() : null,
-    rows.map((r) => h("div.batch-row",
-      r.include,
-      h("div.grow", r.title, h("div.muted.small.batch-name", r.file.name), r.bar, r.status))));
+      rows.push(r);
+    }
+    await render();
+  };
+
+  const clearList = () => {
+    if (running) return;
+    for (const r of rows) invoke("forget_picked", { id: r.file.id }).catch(() => {});
+    rows = [];
+    clear(list);
+    overall.textContent = "";
     refresh();
   };
 
@@ -168,7 +187,11 @@ registerScreen("batch", (_route, page) => {
       r.bar.classList.remove("hidden");
       uploadId = crypto.randomUUID();
       try {
-        if (r.file.online_only) await download(r);
+        if (r.file.online_only) {
+          await download(r);
+          const check = await checkVideoSize(r.file);  // now it can be read
+          if (!check.ok) throw new Error(check.note);
+        }
         setStatus(r, "uploading", "Making the thumbnail…");
         const thumb = await videoThumb(r.file);
         const { result } = await api.upload({
@@ -236,12 +259,16 @@ registerScreen("batch", (_route, page) => {
       h("button.iconbtn", { title: "Back", style: "font-size:20px", onclick: back }, "←"),
       h("h1.grow", "Batch upload"))),
     h("div.page",
-      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos, 1 GB each."),
-      h("p.muted.small", "Videos in OneDrive: use Choose a folder. Online-only videos then download one at a time while posting, "
+      h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos at a time. Videos over 1 GB are fine when GFC can optimise them to 1 GB (it checks first)."),
+      h("p.muted.small", "Videos in OneDrive: use Add folders. Online-only videos then download one at a time while posting, "
         + "instead of all at once in the Windows file picker."),
       h("div.row.wrap", { style: "gap:8px" },
-        h("button.btn", { onclick: () => choose("folder") }, "Choose a folder"),
-        h("button.btn.secondary", { onclick: () => choose("files") }, "Choose videos")),
+        h("button.btn", { onclick: () => choose("folder") }, "Add folders"),
+        h("button.btn.secondary", { onclick: () => choose("files") }, "Add videos"),
+        h("button.btn.secondary", { onclick: clearList }, "Clear list")),
+      h("div.muted.small", { style: "margin-top:6px" },
+        "In the window that opens, Ctrl-click or Shift-click to pick several videos (or several folders). "
+        + "Each pick adds to the list."),
       summary,
       list,
       h("label", { style: "margin-top:16px" }, "For every video"),

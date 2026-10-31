@@ -22,9 +22,12 @@ use tauri::{ipc::Channel, AppHandle, Manager, Runtime, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_http::reqwest;
 
-/// The largest post the node takes (config.MAX_UPLOAD_BYTES): 1 GB. Files are streamed, never
+/// The largest post the node keeps (config.MAX_UPLOAD_BYTES): 1 GB. Files are streamed, never
 /// read whole into memory.
-pub const MAX_UPLOAD_BYTES: u64 = 1024 * 1024 * 1024;
+pub const MAX_POST_BYTES: u64 = 1024 * 1024 * 1024;
+/// Videos can be uploaded up to 4 GB (config.MAX_VIDEO_UPLOAD_BYTES) when the node's optimised
+/// copy will fit MAX_POST_BYTES; the app checks with video_info first, the node again.
+pub const MAX_UPLOAD_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 /// The largest download the app saves (posts are up to 1 GB).
 const MAX_DOWNLOAD_BYTES: u64 = 1100 * 1024 * 1024;
 const MAX_TEASER_BYTES: u64 = 64 * 1024 * 1024;
@@ -286,6 +289,21 @@ fn is_video_path(p: &std::path::Path) -> bool {
     p.extension().and_then(|e| e.to_str()).map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
 }
 
+/// Length and picture size of a picked MP4/MOV video, from its header only (a few KB read), for
+/// the optimised-size estimate. None for other formats, damaged files, and OneDrive online-only
+/// files (reading would download them; the batch asks again once they're downloaded).
+#[tauri::command]
+pub fn video_info(picked: State<'_, Picked>, id: String) -> Option<crate::videoinfo::VideoInfo> {
+    let entry = picked.get(&id).ok()?;
+    let Source::Path(path) = &entry.source else { return None };
+    let meta = std::fs::metadata(path).ok()?;
+    if is_online_only(&meta) {
+        return None;
+    }
+    let mut f = std::fs::File::open(path).ok()?;
+    crate::videoinfo::mp4_info(&mut f, meta.len())
+}
+
 /// Batch upload (desktop): every video in a folder the user picks ("folder", top level only,
 /// sorted by name), or several videos picked at once ("files"). Too-big files are listed too;
 /// the app skips them. None if the user cancelled.
@@ -296,11 +314,15 @@ pub async fn pick_videos<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked
     }
     let mut paths: Vec<PathBuf> = Vec::new();
     if mode == "folder" {
-        let Some(dir) = app.dialog().file().set_title("Choose a folder of videos").blocking_pick_folder() else { return Ok(None) };
-        let dir = dir.into_path().map_err(|_| "this folder can't be opened here".to_string())?;
-        paths = videos_in(&dir)?;
+        // Ctrl- or Shift-click picks several folders
+        let Some(dirs) = app.dialog().file().set_title("Choose one or more folders of videos").blocking_pick_folders() else { return Ok(None) };
+        for dir in dirs {
+            let dir = dir.into_path().map_err(|_| "this folder can't be opened here".to_string())?;
+            paths.extend(videos_in(&dir)?);
+        }
     } else {
-        let Some(files) = app.dialog().file().add_filter("Videos", VIDEO_EXTENSIONS).blocking_pick_files() else { return Ok(None) };
+        let Some(files) = app.dialog().file().set_title("Choose videos (Ctrl-click or Shift-click to pick several)")
+            .add_filter("Videos", VIDEO_EXTENSIONS).blocking_pick_files() else { return Ok(None) };
         for f in files {
             if let Ok(p) = f.into_path() {
                 if is_video_path(&p) {
@@ -664,7 +686,12 @@ async fn upload_inner<R: Runtime>(
         let entry = picked.get(&id)?;
         let (file, len) = open_entry(app, &entry)?;
         if len + 64 * 1024 > MAX_UPLOAD_BYTES {
-            return Err(format!("This file is {:.0} MB; posts can be up to 1 GB.", len as f64 / 1048576.0));
+            return Err(format!("This file is {:.1} GB; videos can be uploaded up to 4 GB.", len as f64 / 1073741824.0));
+        }
+        let is_video = std::path::Path::new(&entry.name).extension().and_then(|e| e.to_str())
+            .map(|e| VIDEO_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false);
+        if !is_video && len + 64 * 1024 > MAX_POST_BYTES {
+            return Err(format!("This file is {:.1} GB; posts can be up to 1 GB.", len as f64 / 1073741824.0));
         }
         let name: String = entry.name.chars().filter(|c| !matches!(c, '"' | '\r' | '\n')).collect();
         let name = if name.is_empty() { "upload.bin".to_string() } else { name };

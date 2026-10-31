@@ -12,14 +12,15 @@ import type { ModelView } from "../viewer3d";
 import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
 import { oneDriveMissing, oneDriveTip, isOneDriveError } from "../ui/onedrive";
+import { checkVideoSize, MAX_POST, type BigVideoCheck } from "../ui/videosize";
 
 export interface Picked {
   id: string; name: string; size: number; mime: string;
   /** OneDrive "Available when online": downloaded from the cloud before it's posted */
   online_only?: boolean;
 }
-/** The node's limit (1 GB). Big videos get their thumbnail from the node. */
-export const MAX_UPLOAD = 1024 * 1024 * 1024;
+/** The node keeps posts up to 1 GB; videos can be bigger when its optimised copy fits (ui/videosize). */
+export const MAX_UPLOAD = MAX_POST;
 const VIDEO_EXT = ["mp4", "mov", "webm", "mkv", "avi", "wmv", "flv"];
 const ext = (n: string) => n.split(".").pop()!.toLowerCase();
 const isVideo = (p: Picked) => p.mime.startsWith("video/") || VIDEO_EXT.includes(ext(p.name));
@@ -88,7 +89,9 @@ registerScreen("post", (route, page) => {
   const after = h("div.row.wrap.hidden", { style: "margin-top:12px" });
   const notes = h("div.small", { style: "margin-top:8px;line-height:1.6" });
 
-  const tooBig = () => !!picked && picked.size + 64 * 1024 > MAX_UPLOAD;
+  // A video over 1 GB is fine when its optimised copy will fit (checked when it's picked)
+  let videoCheck: BigVideoCheck = { ok: true, note: "" };
+  const tooBig = () => !!picked && (isVideo(picked) ? !videoCheck.ok : picked.size + 64 * 1024 > MAX_UPLOAD);
   const exclusiveAllowed = () => !picked || isVideo(picked) || isZipFile(picked);
 
   const update = () => {
@@ -117,6 +120,7 @@ registerScreen("post", (route, page) => {
   const dropMedia = () => {
     if (picked && inTauri) invoke("forget_picked", { id: picked.id }).catch(() => {});
     picked = null;
+    videoCheck = { ok: true, note: "" };
     thumbMaker = null;
     model?.dispose();
     model = null;
@@ -161,7 +165,11 @@ registerScreen("post", (route, page) => {
     clear(mediaPanel, prev, h("div.row", { style: "margin-top:8px" }, h("div.grow", info),
       h("button.btn.secondary.small", { onclick: dropMedia }, "Remove")));
     mediaPanel.classList.remove("hidden");
-    if (tooBig()) info.append(h("div.danger", "Too big: posts can be up to 1 GB. Trim the video and try again."));
+    videoCheck = isVideo(p) ? await checkVideoSize(p) : { ok: true, note: "" };
+    if (picked !== p) return;  // another file was picked meanwhile
+    if (!videoCheck.ok) info.append(h("div.tip", videoCheck.note));
+    else if (videoCheck.note) info.append(h("div.muted", videoCheck.note));
+    else if (tooBig()) info.append(h("div.danger", "Too big: posts can be up to 1 GB."));
     else if (isVideo(p) && p.size >= VIDEO_PREVIEW_MAX) {
       info.append(h("div.muted", "A big video: no preview here, and GFC makes its thumbnail after it's posted. "
         + "Uploading 1 GB takes a while on a slow connection: keep the app open until it's done."));
