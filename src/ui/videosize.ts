@@ -23,13 +23,22 @@ export function estimatedBytes(info: VideoInfo, size: number): number {
   return (info.duration * (ceiling(info) + AUDIO_KBPS) * 1000) / 8;
 }
 
+/** The highest video bitrate (Mbit/s, one decimal, rounded down) that keeps a video this long under 1 GB. */
+export function targetMbps(duration: number): number {
+  return Math.max(0.1, Math.floor((((MAX_POST * 8) / 1000 / Math.max(duration, 1) - AUDIO_KBPS) / 1000) * 10) / 10);
+}
+
 /** The tip when even the optimised copy is over 1 GB. */
 export function bitrateTip(info: VideoInfo, size: number): string {
-  const target = Math.max(1, ((MAX_POST * 8) / 1000 / Math.max(info.duration, 1) - AUDIO_KBPS) / 1000);
+  const target = targetMbps(info.duration);
+  const short = Math.min(info.width, info.height);
+  // Below about 3 Mbit/s, 1080p and up looks soft: 720p at the same bitrate looks better
+  const res = target < 3 && short > 720 ? ", and at 720p (1280x720): at this bitrate it looks better than "
+    + `${short}p` : "";
   return `Tip: lower the bitrate. This video would still be about ${fmtBytes(estimatedBytes(info, size))} after GFC `
     + `optimises it (${Math.round(info.duration / 60)} min at ${info.width}x${info.height}), and posts can be up to 1 GB. `
-    + `Export it at ${Math.floor(target)} Mbit/s or less (the video bitrate in your editor's export settings), `
-    + "or at a lower resolution, or trim it, then post it again.";
+    + `Export it at ${target.toFixed(1)} Mbit/s or less (the video bitrate in your editor's export settings)${res}. `
+    + "Or split it into parts, then post them.";
 }
 
 export interface BigVideoCheck { ok: boolean; note: string }

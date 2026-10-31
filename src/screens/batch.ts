@@ -23,9 +23,9 @@ interface Row {
   result?: UploadResult;
 }
 
-/** "my_trip-2026_part 2.mp4" -> "my trip 2026 part 2" */
+/** "my_trip_1-23-2025.mp4" -> "my trip 1-23-2025" (underscores become spaces; dashes stay, e.g. in dates) */
 export function titleFromFileName(name: string): string {
-  return name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").replace(/\s*-\s*/g, " - ").replace(/\s+/g, " ").trim().slice(0, 300);
+  return name.replace(/\.[^.]+$/, "").replace(/_+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
 /** A JPEG of the video's first frame, or null (too big to read, or it won't decode here). */
