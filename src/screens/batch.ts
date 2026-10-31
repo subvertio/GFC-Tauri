@@ -2,7 +2,7 @@
 // titles, set one description, tags and the Exclusive options for them all, and post them
 // one after another. Each video is its own post, with its own first-frame thumbnail.
 
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { api, ApiError, type UploadResult } from "../api";
 import { registerScreen, back, go, askToVerify, whenAllowedToPost } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
@@ -67,6 +67,7 @@ registerScreen("batch", (_route, page) => {
   const previewSeconds = () => Number(lengthRadios.find((r) => r.checked)?.value ?? 5);
   const postBtn = h("button.btn", "Post all") as HTMLButtonElement;
   const stopBtn = h("button.btn.secondary.hidden", "Stop after this one") as HTMLButtonElement;
+  const cancelBtn = h("button.btn.secondary.hidden", "Cancel now") as HTMLButtonElement;
   const overall = h("div.muted.small", { style: "margin-top:8px" });
 
   const included = () => rows.filter((r) => r.include.checked && r.state !== "posted" && r.state !== "skipped");
@@ -119,7 +120,7 @@ registerScreen("batch", (_route, page) => {
         r.include.checked = false;
         setStatus(r, "skipped", `Too big: ${fmtBytes(file.size)} (the limit is ${fmtBytes(MAX_UPLOAD)})`, "danger");
       } else {
-        setStatus(r, "waiting", fmtBytes(file.size));
+        setStatus(r, "waiting", file.online_only ? `${fmtBytes(file.size)} · ☁ in OneDrive: downloads when it's posted` : fmtBytes(file.size));
       }
       return r;
     });
@@ -129,6 +130,22 @@ registerScreen("batch", (_route, page) => {
     refresh();
   };
 
+  /** Get a OneDrive "online only" video onto this PC first, so a OneDrive hiccup fails here, not mid-upload. */
+  const download = async (r: Row) => {
+    const ch = new Channel<{ sent: number; total: number }>();
+    ch.onmessage = ({ sent, total }) => {
+      (r.bar.firstChild as HTMLElement).style.width = `${total ? (100 * sent) / total : 0}%`;
+      setStatus(r, "uploading", `Downloading from OneDrive: ${fmtBytes(sent)} of ${fmtBytes(total)}`);
+    };
+    setStatus(r, "uploading", "Downloading from OneDrive…");
+    try {
+      await invoke("make_available", { id: r.file.id, uploadId, onProgress: ch });
+    } catch (e) {
+      throw new Error(String(e));
+    }
+    r.file.online_only = false;
+  };
+
   const postAll = () => whenAllowedToPost(async () => {
     if (running) return;
     const queue = included();
@@ -136,6 +153,7 @@ registerScreen("batch", (_route, page) => {
     running = true;
     stopRequested = false;
     stopBtn.classList.remove("hidden");
+    cancelBtn.classList.remove("hidden");
     refresh();
     let posted = 0, failed = 0, bonus = 0;
     for (const [i, r] of queue.entries()) {
@@ -144,11 +162,12 @@ registerScreen("batch", (_route, page) => {
         continue;
       }
       overall.textContent = `Posting ${i + 1} of ${queue.length}…`;
-      setStatus(r, "uploading", "Making the thumbnail…");
       r.bar.classList.remove("hidden");
-      const thumb = await videoThumb(r.file);
       uploadId = crypto.randomUUID();
       try {
+        if (r.file.online_only) await download(r);
+        setStatus(r, "uploading", "Making the thumbnail…");
+        const thumb = await videoThumb(r.file);
         const { result } = await api.upload({
           fileId: r.file.id,
           title: r.title.value.trim() || titleFromFileName(r.file.name),
@@ -181,6 +200,8 @@ registerScreen("batch", (_route, page) => {
     }
     running = false;
     stopBtn.classList.add("hidden");
+    cancelBtn.classList.add("hidden");
+    stopBtn.textContent = "Stop after this one";
     overall.textContent = `${posted} posted${failed ? `, ${failed} failed` : ""}${stopRequested ? " (stopped)" : ""}.`
       + (failed ? " Press Post again to retry the ones that failed." : "");
     if (bonus) {
@@ -195,6 +216,11 @@ registerScreen("batch", (_route, page) => {
     stopRequested = true;
     stopBtn.textContent = "Stopping after this one…";
   };
+  // Stops the current download or upload too
+  cancelBtn.onclick = () => {
+    stopRequested = true;
+    invoke("cancel_upload", { uploadId }).catch(() => {});
+  };
   exclusive.addEventListener("change", refresh);
   description.addEventListener("input", refresh);
 
@@ -204,6 +230,8 @@ registerScreen("batch", (_route, page) => {
       h("h1.grow", "Batch upload"))),
     h("div.page",
       h("p.muted", "Post many videos at once: each one becomes its own post. Up to 100 videos, 200 MB each."),
+      h("p.muted.small", "Videos in OneDrive: use Choose a folder. Online-only videos then download one at a time while posting, "
+        + "instead of all at once in the Windows file picker."),
       h("div.row.wrap", { style: "gap:8px" },
         h("button.btn", { onclick: () => choose("folder") }, "Choose a folder"),
         h("button.btn.secondary", { onclick: () => choose("files") }, "Choose videos")),
@@ -215,7 +243,7 @@ registerScreen("batch", (_route, page) => {
       h("label.check", { style: "margin-top:8px" }, exclusive, "Exclusive to GFC Network"),
       h("div.muted.small", "Only real GFC accounts can watch the full clips; everyone else gets a short preview to share."),
       lengthRow,
-      h("div.row.wrap", { style: "gap:8px;margin-top:16px" }, postBtn, stopBtn),
+      h("div.row.wrap", { style: "gap:8px;margin-top:16px" }, postBtn, stopBtn, cancelBtn),
       overall));
   refresh();
 

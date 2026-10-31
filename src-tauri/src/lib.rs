@@ -15,6 +15,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             files::pick_file,
             files::pick_videos,
+            files::make_available,
             files::debug_pick_path,
             files::read_picked,
             files::forget_picked,

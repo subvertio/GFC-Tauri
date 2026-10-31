@@ -12,7 +12,11 @@ import type { ModelView } from "../viewer3d";
 import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
 
-export interface Picked { id: string; name: string; size: number; mime: string }
+export interface Picked {
+  id: string; name: string; size: number; mime: string;
+  /** OneDrive "Available when online": downloaded from the cloud before it's posted */
+  online_only?: boolean;
+}
 export const MAX_UPLOAD = 200 * 1024 * 1024;
 const VIDEO_EXT = ["mp4", "mov", "webm", "mkv", "avi", "wmv", "flv"];
 const ext = (n: string) => n.split(".").pop()!.toLowerCase();

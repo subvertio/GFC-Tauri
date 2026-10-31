@@ -66,6 +66,39 @@ pub struct PickedFile {
     name: String,
     size: u64,
     mime: String,
+    /// A cloud placeholder (OneDrive "Available when online"): its content is downloaded
+    /// by the cloud app when it's first read. make_available() does that up front.
+    online_only: bool,
+}
+
+/// Windows cloud files (OneDrive Files On-Demand, Dropbox, iCloud...): a placeholder whose
+/// content is still in the cloud. Reading its attributes doesn't download it.
+#[cfg(windows)]
+fn is_online_only(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const OFFLINE: u32 = 0x1000;
+    const RECALL_ON_OPEN: u32 = 0x4_0000;
+    const RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
+    meta.file_attributes() & (OFFLINE | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS) != 0
+}
+#[cfg(not(windows))]
+fn is_online_only(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+/// Windows' cloud-file errors (ERROR_CLOUD_FILE_*: OneDrive crashed, isn't running or signed
+/// in, timed out...), e.g. 0x80070194 "The cloud file provider exited unexpectedly".
+fn is_cloud_error(code: i32) -> bool {
+    (358..=404).contains(&code) || code == 426
+}
+
+/// An I/O error as something a person can act on.
+fn friendly_io(e: &std::io::Error) -> String {
+    match e.raw_os_error() {
+        Some(c) if is_cloud_error(c) => format!(
+            "OneDrive (or your cloud storage app) couldn't download this file: {e}. Check that OneDrive is running and              signed in, then try again. To avoid this, right-click the folder in File Explorer and choose              \"Always keep on this device\" before posting."),
+        _ => e.to_string(),
+    }
 }
 
 fn mime_for(name: &str) -> &'static str {
@@ -128,8 +161,8 @@ fn with_extension(name: String, mime: &str) -> String {
 fn open_entry<R: Runtime>(_app: &AppHandle<R>, e: &PickedEntry) -> Result<(std::fs::File, u64), String> {
     match &e.source {
         Source::Path(p) => {
-            let f = std::fs::File::open(p).map_err(|e| e.to_string())?;
-            let len = f.metadata().map_err(|e| e.to_string())?.len();
+            let f = std::fs::File::open(p).map_err(|e| friendly_io(&e))?;
+            let len = f.metadata().map_err(|e| friendly_io(&e))?.len();
             Ok((f, len))
         }
         #[cfg(target_os = "android")]
@@ -172,7 +205,7 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
         let mime = if o.mime.is_empty() { mime_for(&o.name).to_string() } else { o.mime.clone() };
         let name = with_extension(o.name.clone(), &mime);
         let id = picked.add(Source::Uri(uri), name.clone());
-        return Ok(Some(PickedFile { id, name, size: o.size, mime }));
+        return Ok(Some(PickedFile { id, name, size: o.size, mime, online_only: false }));
     }
     #[cfg(not(target_os = "android"))]
     {
@@ -232,10 +265,51 @@ fn videos_in(dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn picked_path(picked: &Picked, path: PathBuf) -> Result<PickedFile, String> {
-    let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    let meta = std::fs::metadata(&path).map_err(|e| friendly_io(&e))?;
     let name = path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "upload.bin".into());
     let id = picked.add(Source::Path(path), name.clone());
-    Ok(PickedFile { id, mime: mime_for(&name).into(), name, size })
+    Ok(PickedFile { id, mime: mime_for(&name).into(), name, size: meta.len(), online_only: is_online_only(&meta) })
+}
+
+/// Get a cloud placeholder's content onto this PC before it's posted (reading it through
+/// makes OneDrive download it), with progress. Nothing to do for a file that's already here.
+/// Cancel with cancel_upload(upload_id).
+#[tauri::command]
+pub async fn make_available<R: Runtime>(
+    app: AppHandle<R>,
+    picked: State<'_, Picked>,
+    id: String,
+    upload_id: String,
+    on_progress: Channel<Progress>,
+) -> Result<(), String> {
+    use tokio::io::AsyncReadExt;
+    let entry = picked.get(&id)?;
+    let Source::Path(path) = &entry.source else { return Ok(()) };
+    let meta = std::fs::metadata(path).map_err(|e| friendly_io(&e))?;
+    if !is_online_only(&meta) {
+        return Ok(());
+    }
+    let cancel = Arc::new(AtomicBool::new(false));
+    picked.cancels.lock().unwrap().insert(upload_id.clone(), cancel.clone());
+    let result = async {
+        let (file, total) = open_entry(&app, &entry)?;
+        let mut f = tokio::fs::File::from_std(file);
+        let mut buf = vec![0u8; 1024 * 1024];
+        let mut done = 0u64;
+        loop {
+            if cancel.load(Ordering::Relaxed) {
+                return Err("Upload cancelled.".to_string());
+            }
+            let n = f.read(&mut buf).await.map_err(|e| friendly_io(&e))?;
+            if n == 0 {
+                return Ok(());
+            }
+            done += n as u64;
+            let _ = on_progress.send(Progress { sent: done, total });
+        }
+    }.await;
+    picked.cancels.lock().unwrap().remove(&upload_id);
+    result
 }
 
 /// Debug builds only: register a file as if the user had picked it, so automated UI
@@ -620,6 +694,24 @@ mod batch_tests {
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
         assert_eq!(names, ["a.mov", "b clip.MP4", "c.webm"]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cloud_errors_get_a_plain_explanation() {
+        // 0x80070194: "The cloud file provider exited unexpectedly" (OneDrive crashed)
+        let crashed = std::io::Error::from_raw_os_error(0x194);
+        assert!(friendly_io(&crashed).contains("OneDrive"));
+        assert!(friendly_io(&crashed).contains("Always keep on this device"));
+        let missing = std::io::Error::from_raw_os_error(2);
+        assert!(!friendly_io(&missing).contains("OneDrive"));
+    }
+
+    #[test]
+    fn a_normal_file_is_not_online_only() {
+        let p = std::env::temp_dir().join(format!("gfc-local-{}.mp4", std::process::id()));
+        std::fs::write(&p, b"x").unwrap();
+        assert!(!is_online_only(&std::fs::metadata(&p).unwrap()));
+        let _ = std::fs::remove_file(&p);
     }
 
     #[test]
