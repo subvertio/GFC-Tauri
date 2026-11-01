@@ -4,7 +4,15 @@ import { api } from "./api";
 import { session } from "./session";
 import { h } from "./ui/dom";
 
+// The ka-ching from the original GFC app
+const KA_CHING = "/sounds/ka_ching.mp3";
+
 export function celebrate(amount: number, caption: string) {
+  const sound = new Audio(KA_CHING);
+  sound.volume = 0.8;
+  sound.play().catch(() => {
+    /* the WebView may refuse sound before the first tap: the burst still shows */
+  });
   const burst = h("div.burst",
     h("div.amount", `+${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} GFC`, h("small", caption)));
   for (let i = 0; i < 22; i++) {
@@ -30,6 +38,24 @@ export async function checkEarnings(): Promise<number> {
     }
   }));
   return gained;
+}
+
+const WATCH_MS = 30_000;
+let watching = false;
+
+/**
+ * While the app is open, every rise in the user's wallets (views paid, ad payouts, transfers in,
+ * bridged GFC coming back) plays the ka-ching and the coin burst. Screens that celebrate a gain
+ * themselves call checkEarnings() after, so it isn't celebrated twice.
+ */
+export function watchEarnings() {
+  if (watching) return;
+  watching = true;
+  setInterval(async () => {
+    if (!session.loggedIn || document.hidden) return;  // a hidden window catches up when shown
+    const gained = await checkEarnings();
+    if (gained > 0) celebrate(gained / 100, "You earned GFC!");
+  }, WATCH_MS);
 }
 
 /** After login, register, or launch with a saved session. */

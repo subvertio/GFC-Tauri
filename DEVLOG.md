@@ -128,6 +128,8 @@ to this table and to `scripts/check-downloads.ps1`.
   Android shows "update available" and opens the download (see the pipeline above). Anyone on
   0.2.2 or older installs 0.2.3 by hand once. (node: GFCCoin PR #67)
 - **Version number** on the login screen, in the account menu and in the side panel.
+- **Ka-ching!** Every time your GFC goes up while the app is open (checked every 30 seconds),
+  the coin burst plays with the original GFC ka-ching sound, as it did in the Unreal app.
 - **Connect another site:** one-time codes for partner sign-ups such as creator-world.org
   (node: GFCCoin PR #64).
 
