@@ -122,6 +122,11 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ## 0.2.3 (2026-11-01): Windows and Android
 
+Published 2026-11-01 ~17:32 UTC: Windows (3.4 MB zip, signed for self-updates; the live
+`/app/windows/update.json` serves 0.2.3 and `update.exe` matches the build byte for byte) and
+Android (11.2 MB APK, version code 2003, release key checked). `check-downloads.ps1 -Version 0.2.3`
+passed. The first real self-update will be 0.2.3 → 0.2.4.
+
 **New**
 
 - **Updates itself.** Windows downloads signed updates from the node and asks to restart;
