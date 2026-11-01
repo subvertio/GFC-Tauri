@@ -6,7 +6,14 @@ mod secure_store;
 // The Android (and iOS) app calls into this through the generated JNI entry point
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Windows updates itself from the node (signed with the updater key); Android can't, so it
+    // only gets the "update available" prompt (src/update.ts)
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
+    builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

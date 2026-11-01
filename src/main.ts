@@ -2,6 +2,7 @@ import "./styles.css";
 import { mountShell, start } from "./app";
 import { session } from "./session";
 import { afterLogin } from "./earnings";
+import { startUpdateChecks } from "./update";
 import "./screens/feed";
 import "./screens/login";
 import "./screens/detail";
@@ -17,6 +18,7 @@ async function boot() {
   const restored = await session.restore();
   start(restored ? { name: "feed", src: "foryou" } : { name: "login" });
   if (restored) afterLogin();
+  startUpdateChecks();
 }
 
 boot();

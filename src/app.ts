@@ -6,6 +6,7 @@ import { session } from "./session";
 import { h, clear, sheet, toast } from "./ui/dom";
 import { sweepModels } from "./lazy3d";
 import { stopAllMedia } from "./ui/media";
+import { APP_VERSION } from "./update";
 
 export type FeedSource = "foryou" | "following" | "explore" | "bookmarks" | "mine" | "user";
 export type Route =
@@ -197,7 +198,7 @@ function nodeLabel() {
 
 async function accountMenu() {
   const choice = await sheet<string>((close) =>
-    h("div", h("h2", `@${session.user}`), h("div.muted.small", `Node: ${nodeLabel()}`),
+    h("div", h("h2", `@${session.user}`), h("div.muted.small", `GFC ${APP_VERSION} · Node: ${nodeLabel()}`),
       h("div.btns",
         h("button.btn.secondary.block", { onclick: () => close("mine") }, "Your posts"),
         h("button.btn.secondary.block", { onclick: () => close("editprofile") }, "Edit profile"),
@@ -237,7 +238,7 @@ export async function renderRightRail() {
     h("button.btn.secondary.small", { style: "margin-top:8px", onclick: () => go({ name: "wallet" }) }, "Open wallet"));
   const earners = h("div.panel", h("h2", "Top earners"), h("div.muted.small", "Loading…"));
   clear(rightRail, search, session.loggedIn ? balance : null, trendingPanel, earners,
-    h("div.muted.small", { style: "padding:0 4px" }, `Node: ${nodeLabel()}`, h("br"), "GFC pays creators when people view their posts."));
+    h("div.muted.small", { style: "padding:0 4px" }, `GFC ${APP_VERSION} · Node: ${nodeLabel()}`, h("br"), "GFC pays creators when people view their posts."));
 
   if (session.loggedIn) {
     const ws = session.wallets();

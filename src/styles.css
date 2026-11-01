@@ -259,6 +259,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 #toast.error { background: var(--danger); }
 #toast[hidden] { display: block; opacity: 0; }
 @media (min-width: 1000px) { #toast { bottom: 24px; } }
+#update-banner {
+  position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 40; width: min(92vw, 560px);
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--accent); box-shadow: 0 6px 24px rgba(0, 0, 0, .6);
+}
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 40; background: rgba(91, 112, 131, .4); display: flex; align-items: center; justify-content: center;

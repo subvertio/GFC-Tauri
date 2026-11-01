@@ -42,6 +42,18 @@
         "installMode": "currentUser",
         "compression": "lzma"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ5OTRDMzJFQkIzRDE5RUEKUldUcUdUMjdMc09VMldyb2FnRU5aa1k4Nm5QeEVFQXQ2bVlFeUtxTVFwWXZoeC9xM1FSY0xPTEgK",
+      "endpoints": [
+        "https://node.galacticfederation.tech/app/windows/update.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

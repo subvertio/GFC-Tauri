@@ -24,12 +24,20 @@ phones already have, or they won't install it as an update.
 
 ### 2. Build
 
-Windows:
+Windows (the build signs the update with the updater key; it asks for nothing, so the password
+is entered first):
 
 ```powershell
-cd D:\projects\GFC-Tauri; npx tauri build
+cd D:\projects\GFC-Tauri; $env:TAURI_SIGNING_PRIVATE_KEY = 'D:\GFCKeys\gfc-updater.key'; $s = Read-Host -AsSecureString 'Updater key password'; $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); npx.cmd tauri build; Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 Compress-Archive -Path .\src-tauri\target\release\bundle\nsis\GFC_<version>_x64-setup.exe -DestinationPath .\Packaged\GFC-Setup-<version>-Windows.zip -Force
+Copy-Item .\src-tauri\target\release\bundle\nsis\GFC_<version>_x64-setup.exe.sig .\Packaged\
 ```
+
+The build must leave `GFC_<version>_x64-setup.exe.sig` next to the installer: that's what lets
+installed apps update themselves. The updater key (`D:\GFCKeys\gfc-updater.key`, password in the
+password manager as "GFC updater key") is the only key the apps accept updates from; losing it
+means every user has to reinstall by hand. Its public half is in `tauri.conf.json`
+(`plugins.updater.pubkey`) and in the node's `GFC_UPDATER_PUBKEY`.
 
 Android: build the release, then sign it with the upload key (it asks for the password):
 
@@ -63,11 +71,22 @@ ssh gfc-node "gfc update"
 ### 5. Publish to the node (the only place)
 
 ```powershell
-scp '.\Packaged\GFC-Setup-<version>-Windows.zip' gfc-node:/tmp/; ssh gfc-node "sudo gfc publish-windows /tmp/GFC-Setup-<version>-Windows.zip <version>"
+scp '.\Packaged\GFC-Setup-<version>-Windows.zip' '.\Packaged\GFC_<version>_x64-setup.exe.sig' gfc-node:/tmp/; ssh gfc-node "sudo gfc publish-windows /tmp/GFC-Setup-<version>-Windows.zip <version> /tmp/GFC_<version>_x64-setup.exe.sig"
 scp '.\Packaged\GFC-<version>-arm64-release.apk' gfc-node:/tmp/GFC-<version>.apk; ssh gfc-node "sudo gfc publish-app /tmp/GFC-<version>.apk <version>"
 ```
 
-`publish-app` refuses an APK that isn't signed with the release key.
+`publish-app` refuses an APK that isn't signed with the release key, and `publish-windows`
+refuses an installer whose updater signature doesn't check out.
+
+**Updates reach users by themselves** (from 0.2.3 on):
+
+- **Windows** checks `/app/windows/update.json` at launch and every 6 hours, downloads the signed
+  installer in the background, and shows "GFC x.y.z is ready: Restart to update".
+- **Android** checks `/app/release.json` and shows "GFC x.y.z is available: Update", which opens
+  the download; Android then asks to install it over the old one (it can't update silently
+  outside the Play Store).
+
+Anyone on 0.2.2 or older has to install 0.2.3 by hand once.
 
 ### 6. Check every location serves it
 

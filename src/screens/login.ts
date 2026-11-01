@@ -6,6 +6,7 @@ import { session } from "../session";
 import { h, toast, sheet } from "../ui/dom";
 import { copyText, openExternal } from "../ui/actions";
 import { afterLogin } from "../earnings";
+import { APP_VERSION } from "../update";
 
 const TEST_NODE = "http://127.0.0.1:8100";
 
@@ -112,7 +113,8 @@ registerScreen("login", (route, page) => {
         h("button.btn.secondary.small", { onclick: () => useNode(LIVE_NODE) }, "Live node"),
         h("button.btn.secondary.small", { onclick: () => useNode(TEST_NODE) }, "Local test node")),
       h("div.row", { style: "margin-top:8px" }, nodeBox, h("button.btn.small", { onclick: () => useNode(nodeBox.value) }, "Use")),
-      h("p.muted.small", "Switching nodes logs you out: an account lives on one node.")),
+      h("p.muted.small", "Switching nodes logs you out: an account lives on one node."),
+      h("p.muted.small", `GFC app ${APP_VERSION}`)),
     h("div", { style: "text-align:center" }, h("button.linkbtn", { onclick: home }, "Browse the feed without logging in")),
   ));
   // On phones focusing would pop the keyboard over the screen before the user asked for it
