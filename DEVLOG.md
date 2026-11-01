@@ -120,6 +120,22 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
+## 0.2.3 (2026-11-01): Windows and Android
+
+**New**
+
+- **Updates itself.** Windows downloads signed updates from the node and asks to restart;
+  Android shows "update available" and opens the download (see the pipeline above). Anyone on
+  0.2.2 or older installs 0.2.3 by hand once. (node: GFCCoin PR #67)
+- **Version number** on the login screen, in the account menu and in the side panel.
+- **Connect another site:** one-time codes for partner sign-ups such as creator-world.org
+  (node: GFCCoin PR #64).
+
+**Fixed**
+
+- Usernames typed as "@Name" log in (the box says "without @"), and a failed login says whether
+  the username or the password was wrong. (BubbaStartz typed "@BubbaStartz".) (node: GFCCoin PR #66)
+
 ## 0.2.2 (2026-10-31): Windows and Android
 
 Android published 2026-10-31 (10.6 MB APK, version code 2002, release key checked); both apps checked with
