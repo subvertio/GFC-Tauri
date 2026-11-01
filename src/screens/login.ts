@@ -11,7 +11,7 @@ const TEST_NODE = "http://127.0.0.1:8100";
 
 registerScreen("login", (route, page) => {
   const r = route as Extract<Route, { name: "login" }>;
-  const user = h("input", { placeholder: "username", autocomplete: "username", autocapitalize: "off", spellcheck: false }) as HTMLInputElement;
+  const user = h("input", { placeholder: "username (without @)", autocomplete: "username", autocapitalize: "off", spellcheck: false }) as HTMLInputElement;
   const pass = h("input", { type: "password", placeholder: "password", autocomplete: "current-password" }) as HTMLInputElement;
   const email = h("input", { type: "email", placeholder: "e-mail (optional)", autocomplete: "email" }) as HTMLInputElement;
   const stay = h("input", { type: "checkbox", checked: session.prefs.stayLoggedIn }) as HTMLInputElement;
@@ -40,19 +40,23 @@ registerScreen("login", (route, page) => {
     loginBtn.disabled = registerBtn.disabled = b;
   };
   const done = () => (r.back ? go(r.back, { replace: true }) : home());
+  // Names are shown as "@Name", so people type the @ too
+  const username = () => user.value.trim().replace(/^@+/, "").trim();
 
   const doLogin = async () => {
-    if (!user.value.trim() || !pass.value) return say("Enter a username and password.", true);
+    if (!username() || !pass.value) return say("Enter a username and password.", true);
     busy(true);
     say("Logging in…");
     try {
-      const res = await api.login(user.value, pass.value);
+      const res = await api.login(username(), pass.value);
       await session.begin(res.user, res.token, stay.checked);
       toast(`Welcome back, ${res.user}.`);
       afterLogin();
       done();
     } catch (e) {
-      say(e instanceof ApiError && e.status === 401 ? "Wrong username or password." : String((e as Error).message), true);
+      // Newer nodes say which part was wrong (usernames are public anyway); older ones don't
+      const known = e instanceof ApiError && /^(No account with that username|Wrong password)/.test(e.message);
+      say(e instanceof ApiError && e.status === 401 && !known ? "Wrong username or password." : String((e as Error).message), true);
     } finally {
       busy(false);
       pass.value = "";
@@ -60,12 +64,12 @@ registerScreen("login", (route, page) => {
   };
 
   const doRegister = async () => {
-    if (!user.value.trim() || !pass.value) return say("Enter a username and password.", true);
+    if (!username() || !pass.value) return say("Enter a username and password.", true);
     if (pass.value.length < 8) return say("Use a password of at least 8 characters.", true);
     busy(true);
     say("Creating your account…");
     try {
-      const res = await api.register(user.value, pass.value, email.value);
+      const res = await api.register(username(), pass.value, email.value);
       await session.begin(res.user, res.token, stay.checked);
       pass.value = "";
       if (res.recovery_code) await showRecoveryCode(res.recovery_code, true);
