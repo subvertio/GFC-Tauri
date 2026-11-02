@@ -168,6 +168,10 @@ export interface BridgeQuote {
   balance_cents: number; bridgeable_cents: number; held_cents: number; faucet_hold_days: number;
   min_deposit_cents: number; relay_fee_cents: number;
 }
+export interface DiscordStatus {
+  available: boolean; phoneVerified: boolean; linked: boolean;
+  discordName?: string; linkedAt?: string; role?: "pending" | "granted" | "left";
+}
 export interface BridgeDeposit { ok: boolean; tx_hash: string; amount_cents: number; mint_cents: number; status: string }
 
 // ---- The client --------------------------------------------------------------------
@@ -357,6 +361,16 @@ export class GfcApi {
   connectCode(partner: string) {
     return this.request<{ code: string; partner: string; name: string; expiresIn: number }>("POST", "/connect/code",
       { auth: "required", form: { partner } });
+  }
+  discordStatus() {
+    return this.request<DiscordStatus>("GET", "/discord/status", { auth: "required" });
+  }
+  /** A one-time code for /verify in the GFC Discord (phone-verified accounts only). */
+  discordCode() {
+    return this.request<{ code: string; expiresIn: number }>("POST", "/discord/code", { auth: "required", form: {} });
+  }
+  discordUnlink() {
+    return this.request<{ unlinked: boolean }>("POST", "/discord/unlink", { auth: "required", form: {} });
   }
   adMarket() {
     return this.request<AdMarket>("GET", "/ads/market");

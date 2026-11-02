@@ -11,6 +11,7 @@ import "./screens/batch";
 import "./screens/profile-edit";
 import "./screens/ads";
 import "./screens/connect";
+import "./screens/discord";
 import "./screens/wallet";
 
 async function boot() {
