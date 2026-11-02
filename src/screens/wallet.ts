@@ -13,18 +13,12 @@ import { showRecoveryCode } from "./login";
 let rerender: (() => void) | null = null;
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const EXPLORERS: Record<number, string> = { 8453: "https://basescan.org", 84532: "https://sepolia.basescan.org" };
+/** Blockscout: its Write contract tab works in MetaMask's own browser, and both contracts are verified there. */
+const EXPLORERS: Record<number, string> = { 8453: "https://base.blockscout.com", 84532: "https://base-sepolia.blockscout.com" };
 const LAST_EVM_KEY = "gfc.bridge.evm";
 
-/** A 32-byte ABI word. */
-const word = (n: bigint) => n.toString(16).padStart(64, "0");
-/** GFC has 18 decimals; the bridge counts whole cents (1 cent = 10^16 units). */
-const units = (cents: number) => BigInt(cents) * 10n ** 16n;
-/** approve(bridge, amount) on the token: lets the bridge take that much GFC. */
-export const approveData = (bridge: string, cents: number) =>
-  "0x095ea7b3" + bridge.slice(2).toLowerCase().padStart(64, "0") + word(units(cents));
-/** bridgeOut(amount, ledgerWallet) on the bridge: burns it and pays it to that ledger wallet. */
-export const bridgeOutData = (cents: number, wallet: string) => "0x790f2c1a" + word(units(cents)) + wallet.toLowerCase();
+/** GFC has 18 decimals; the bridge counts whole cents (1 cent = 10^16 units). Written out in full for the explorer's form. */
+export const units = (cents: number) => (BigInt(cents) * 10n ** 16n).toString();
 
 function remembered(): string {
   try { return localStorage.getItem(LAST_EVM_KEY) ?? ""; } catch { return ""; }
@@ -248,7 +242,7 @@ registerScreen("wallet", (_route: Route, page) => {
       bringBack(chain));
   };
 
-  /** Bringing GFC back: two transactions from the user's own wallet, prepared here to paste into MetaMask. */
+  /** Bringing GFC back: two transactions from the user's own wallet, on the explorer's Write contract tab. */
   const bringBack = (chain: BridgeChain) => {
     const amount = h("input", { placeholder: "e.g. 50", inputmode: "decimal" }) as HTMLInputElement;
     const out = h("div");
@@ -257,22 +251,35 @@ registerScreen("wallet", (_route: Route, page) => {
       h("div.small.muted", label),
       h("div.row", h("div.mono.small.grow", { style: "word-break:break-all" }, value),
         h("button.btn.secondary.small", { onclick: async () => (await copyText(value)) && toast("Copied.") }, "Copy")));
+    const writePage = (addr: string, label: string) => {
+      const url = `${explorer}/address/${addr}?tab=write_contract`;
+      return h("div", { style: "margin:8px 0" },
+        h("div.small.muted", label),
+        h("div.row", h("div.mono.small.grow", { style: "word-break:break-all" }, url),
+          h("button.btn.secondary.small", { onclick: async () => (await copyText(url)) && toast("Copied.") }, "Copy"),
+          h("button.btn.secondary.small", { onclick: () => openExternal(url) }, "Open")));
+    };
     const show = () => {
       const cents = parseAmountToCents(amount.value);
-      if (!cents || !chain.bridge_address || !chain.token_address) return clear(out);
+      if (!cents || !chain.bridge_address || !chain.token_address || !explorer) return clear(out);
       clear(out,
-        h("p.small", "In MetaMask, turn on Settings → Transactions → Show hex data once. Then send two transactions from "
-          + `the wallet holding the GFC, on ${chain.name}, each with amount 0 ETH:`),
-        h("p.small", h("b", "1. Allow the bridge to take it."), " Send to the GFC token:"),
-        field("To (GFC token)", chain.token_address),
-        field("Hex data", approveData(chain.bridge_address, cents)),
-        h("p.small", h("b", "2. Bridge it back."), " After the first one confirms, send to the bridge:"),
-        field("To (bridge)", chain.bridge_address),
-        field("Hex data", bridgeOutData(cents, selected)),
+        h("p.small", `Two transactions from the wallet holding the GFC on ${chain.name}. Open each page below in MetaMask's `
+          + "own browser (the Browser tab in the MetaMask app), tap Connect wallet, then fill in the form shown."),
+        h("p.small", h("b", "1. Allow the bridge to take it."), " On the GFC token's page, open ", h("b", "approve"), ":"),
+        writePage(chain.token_address, "GFC token, Write contract"),
+        field("spender (the bridge)", chain.bridge_address),
+        field("value", units(cents)),
+        h("p.small", "Tap Write and confirm in MetaMask. Wait until it confirms."),
+        h("p.small", h("b", "2. Bridge it back."), " On the bridge's page, open ", h("b", "bridgeOut"), ":"),
+        writePage(chain.bridge_address, "GFC bridge, Write contract"),
+        field("amount", units(cents)),
+        field("ledgerWallet (this wallet)", "0x" + selected.toLowerCase()),
+        h("p.small", "Tap Write and confirm in MetaMask."),
+        h("p.small.muted", "MetaMask may warn that the bridge contract is untrusted or call the approval high-risk: the bridge is "
+          + "new, so its security service hasn't rated it yet. Check that the spender is exactly the bridge address above. "
+          + "Never sign anything that asks to upgrade your account to a smart account."),
         h("p.small.muted", `${fmtGfc(cents)} then arrives in this wallet (${shortId(selected)}) once ${chain.name} finalizes the `
-          + "block, which can take an hour or more. Never sign anything that asks to upgrade your account to a smart account."),
-        explorer ? h("button.btn.secondary.small", { onclick: () => openExternal(`${explorer}/address/${chain.bridge_address}`) },
-          "View the bridge on the explorer") : null);
+          + "block, usually within an hour."));
     };
     amount.oninput = show;
     return h("details", { style: "margin-top:16px" },
