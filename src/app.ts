@@ -18,6 +18,7 @@ export type Route =
   | { name: "promote"; seedId: string; seed?: Seed }
   | { name: "ads" }
   | { name: "connect" }
+  | { name: "discord" }
   | { name: "wallet" }
   | { name: "login"; back?: Route };
 
@@ -204,6 +205,7 @@ async function accountMenu() {
         h("button.btn.secondary.block", { onclick: () => close("editprofile") }, "Edit profile"),
         h("button.btn.secondary.block", { onclick: () => close("ads") }, "Your ads"),
         h("button.btn.secondary.block", { onclick: () => close("connect") }, "Connect another site"),
+        h("button.btn.secondary.block", { onclick: () => close("discord") }, "Link Discord"),
         h("button.btn.secondary.block", { onclick: () => close("wallet") }, "Wallet"),
         h("button.btn.danger.block", { onclick: () => close("logout") }, `Log out @${session.user}`),
         h("button.btn.secondary.block", { onclick: () => close() }, "Cancel"))),
@@ -212,6 +214,7 @@ async function accountMenu() {
   else if (choice === "editprofile") go({ name: "editprofile" });
   else if (choice === "ads") go({ name: "ads" });
   else if (choice === "connect") go({ name: "connect" });
+  else if (choice === "discord") go({ name: "discord" });
   else if (choice === "wallet") go({ name: "wallet" });
   else if (choice === "logout") {
     toast("Logging out…");
