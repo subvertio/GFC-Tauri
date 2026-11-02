@@ -455,13 +455,26 @@ registerScreen("wallet", (_route: Route, page) => {
   };
 });
 
+const CHAIN_LABELS: Record<string, string> = { "8453": "Base", "84532": "Base Sepolia" };
+
+/** A readable label for bridge deposits, payouts and refunds; anything else shows its note. */
+function txLabel(t: Tx): string {
+  const r = t.reason || "";
+  let m = /^bridge:v1:(\d+):(0x[0-9a-fA-F]{40})$/.exec(r);
+  if (m) return `Bridge to ${CHAIN_LABELS[m[1]] ?? `chain ${m[1]}`} → ${m[2].slice(0, 6)}…${m[2].slice(-4)}`;
+  m = /^bridge-out:v\d+:(\d+):/.exec(r);
+  if (m) return `Back from ${CHAIN_LABELS[m[1]] ?? `chain ${m[1]}`}`;
+  if (r.startsWith("bridge-refund:")) return "Bridge deposit refunded";
+  return r || t.tx_type || "Transfer";
+}
+
 function txRow(t: Tx, wallet: string) {
   const cents = t.amount_cents || Math.round(t.amount * 100);
   const incoming = t.recipient === wallet;
   const other = incoming ? t.sender : t.recipient;
   return h("div.history-row",
     h("div.grow",
-      h("div", t.reason || t.tx_type || "Transfer"),
+      h("div.what", { title: t.reason || "" }, txLabel(t)),
       h("div.muted.small", `${incoming ? "from" : "to"} ${shortId(other)} · ${t.tx_type || "TRANSFER"} · ${(t.timestamp || "").slice(0, 19).replace("T", " ")}`)),
     h("div.amt", { class: incoming ? "in" : "" }, `${incoming ? "+" : "−"}${fmtGfc(cents)}`));
 }
