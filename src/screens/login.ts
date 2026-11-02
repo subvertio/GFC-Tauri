@@ -1,8 +1,8 @@
 // Log in, create an account (the recovery code is shown once), forgot password, and the node switcher.
 
-import { api, HOME_NODE, ApiError, isAndroid } from "../api";
+import { api, HOME_NODE, ApiError, isAndroid, inTauri } from "../api";
 import { registerScreen, go, home, type Route } from "../app";
-import { session } from "../session";
+import { session, pendingInvite, clearInvite } from "../session";
 import { h, toast, sheet } from "../ui/dom";
 import { copyText, openExternal } from "../ui/actions";
 import { afterLogin } from "../earnings";
@@ -15,6 +15,8 @@ registerScreen("login", (route, page) => {
   const user = h("input", { placeholder: "username (without @)", autocomplete: "username", autocapitalize: "off", spellcheck: false }) as HTMLInputElement;
   const pass = h("input", { type: "password", placeholder: "password", autocomplete: "current-password" }) as HTMLInputElement;
   const email = h("input", { type: "email", placeholder: "e-mail (optional)", autocomplete: "email" }) as HTMLInputElement;
+  const invitedBy = h("input", { placeholder: "their GFC username (optional)", autocapitalize: "off", spellcheck: false,
+    value: pendingInvite() }) as HTMLInputElement;
   const stay = h("input", { type: "checkbox", checked: session.prefs.stayLoggedIn }) as HTMLInputElement;
   const msg = h("div.small", { style: "min-height:20px;margin-top:8px" });
   const loginBtn = h("button.btn.block", "Log in") as HTMLButtonElement;
@@ -70,7 +72,8 @@ registerScreen("login", (route, page) => {
     busy(true);
     say("Creating your account…");
     try {
-      const res = await api.register(username(), pass.value, email.value);
+      const res = await api.register(username(), pass.value, email.value, invitedBy.value);
+      clearInvite();
       await session.begin(res.user, res.token, stay.checked);
       pass.value = "";
       if (res.recovery_code) await showRecoveryCode(res.recovery_code, true);
@@ -97,10 +100,13 @@ registerScreen("login", (route, page) => {
     h("div.box",
       h("label", "Username"), user,
       h("label", "Password"), pass,
-      h("label.check", { style: "margin-top:12px" }, stay, isAndroid ? "Stay logged in on this phone" : "Stay logged in on this computer"),
+      h("label.check", { style: "margin-top:12px" }, stay, isAndroid || !inTauri ? "Stay logged in on this phone" : "Stay logged in on this computer"),
       h("p.small", { style: "color:#ffad1f;margin:12px 0 0" },
         "Your password also unlocks your wallets. Forgot it? Reset it with your phone or email, and the recovery code you'll get when you create your account brings your wallets back with it."),
       h("label", "E-mail, for new accounts"), email,
+      h("label", "Invited by, for new accounts"), invitedBy,
+      invitedBy.value ? h("p.small.muted", { style: "margin:4px 0 0" },
+        `You were invited by ${invitedBy.value}: you both get a bonus once your phone is verified and you've been active a day.`) : null,
       msg,
       h("div.stack", { style: "margin-top:8px" }, loginBtn, registerBtn,
         h("button.linkbtn", { style: "display:block;margin:12px auto 0", onclick: async () => {

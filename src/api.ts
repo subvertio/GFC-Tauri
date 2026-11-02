@@ -295,9 +295,10 @@ export class GfcApi {
   async login(username: string, password: string) {
     return this.request<{ token: string; user: string }>("POST", "/auth/login", { form: { username: username.trim(), password } });
   }
-  async register(username: string, password: string, email: string) {
+  /** `ref`: who invited them (their username), for the invite bonus (the node's referrals.py). */
+  async register(username: string, password: string, email: string, ref = "") {
     return this.request<{ token: string; user: string; recovery_code?: string }>("POST", "/auth/register", {
-      form: { username: username.trim(), password, email: email.trim() || undefined },
+      form: { username: username.trim(), password, email: email.trim() || undefined, ref: ref.trim().replace(/^@/, "") || undefined },
     });
   }
   /** Revoke this session's token on the node. Any token may revoke itself. */

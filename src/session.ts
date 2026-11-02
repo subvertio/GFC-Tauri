@@ -28,6 +28,23 @@ async function secretDelete() {
   await invoke("plugin:secure-store|delete", { key: SECRET_KEY });
 }
 
+// An invite (who invited this person) waiting for sign-up: from an invite link (?ref=name on the
+// web app, which the node's /join page opens on iPhone). Kept until an account is created.
+const INVITE_KEY = "gfc.invite";
+const USERNAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,31}$/;
+
+export function captureInvite(search: string = location.search) {
+  const ref = new URLSearchParams(search).get("ref")?.trim().replace(/^@/, "") ?? "";
+  if (!ref || !USERNAME_RE.test(ref)) return;
+  try { localStorage.setItem(INVITE_KEY, ref); } catch { /* the field just starts empty */ }
+}
+export function pendingInvite(): string {
+  try { return localStorage.getItem(INVITE_KEY) ?? ""; } catch { return ""; }
+}
+export function clearInvite() {
+  try { localStorage.removeItem(INVITE_KEY); } catch { /* nothing to clear */ }
+}
+
 export interface KnownWallet { owner: string; node: string; id: string; name: string; backedUp: boolean; lastSeenCents: number }
 interface Prefs { nodeOverride: string; stayLoggedIn: boolean; wallets: KnownWallet[] }
 
