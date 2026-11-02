@@ -120,12 +120,14 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
-## 0.2.4 (2026-11-02): Windows
+## 0.2.4 (2026-11-02): Windows and Android
 
 Published 2026-11-02 ~05:15 Central: Windows only (3.3 MB zip, signed; SHA-256
 `e721662554adee931b6e091b4d71a0caba90e0fad97feefe72ca5bbf07ec431d`). `check-downloads.ps1
--Windows 0.2.4 -Android 0.2.3` passed. The first real self-update (0.2.3 -> 0.2.4). Android
-stays at 0.2.3 until the next Android build.
+-Windows 0.2.4 -Android 0.2.3` passed. The first real self-update (0.2.3 -> 0.2.4).
+Android published ~06:15 Central: 10.6 MB APK, version code 2004, release key checked, SHA-256
+`ff64bf4c15a11da274b542645b503aeeaffc36be4cf1e4aaa893894854bd37e7`; installed with `adb install -r`
+on the moto g (opens, still signed in). `check-downloads.ps1 -Version 0.2.4` passed.
 
 **New**
 
