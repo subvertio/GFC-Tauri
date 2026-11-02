@@ -1,8 +1,8 @@
 // Wallet: recovery code (once), phone verification, wallets, backup (export/import),
-// account recovery, balance, send (with a confirmation), history.
+// account recovery, balance, send (with a confirmation), Bridge to Base, history.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api, inTauri, parseAmountToCents, ApiError, type Tx } from "../api";
+import { api, inTauri, parseAmountToCents, ApiError, type Tx, type BridgeChain, type BridgeInfo } from "../api";
 import { registerScreen, back, renderRightRail, shortId, type Route } from "../app";
 import { session } from "../session";
 import { h, clear, toast, confirmSheet, fmtGfc } from "../ui/dom";
@@ -11,6 +11,27 @@ import { celebrate, checkEarnings } from "../earnings";
 import { showRecoveryCode } from "./login";
 
 let rerender: (() => void) | null = null;
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const EXPLORERS: Record<number, string> = { 8453: "https://basescan.org", 84532: "https://sepolia.basescan.org" };
+const LAST_EVM_KEY = "gfc.bridge.evm";
+
+/** A 32-byte ABI word. */
+const word = (n: bigint) => n.toString(16).padStart(64, "0");
+/** GFC has 18 decimals; the bridge counts whole cents (1 cent = 10^16 units). */
+const units = (cents: number) => BigInt(cents) * 10n ** 16n;
+/** approve(bridge, amount) on the token: lets the bridge take that much GFC. */
+export const approveData = (bridge: string, cents: number) =>
+  "0x095ea7b3" + bridge.slice(2).toLowerCase().padStart(64, "0") + word(units(cents));
+/** bridgeOut(amount, ledgerWallet) on the bridge: burns it and pays it to that ledger wallet. */
+export const bridgeOutData = (cents: number, wallet: string) => "0x790f2c1a" + word(units(cents)) + wallet.toLowerCase();
+
+function remembered(): string {
+  try { return localStorage.getItem(LAST_EVM_KEY) ?? ""; } catch { return ""; }
+}
+function remember(addr: string) {
+  try { localStorage.setItem(LAST_EVM_KEY, addr); } catch { /* a convenience only */ }
+}
 let verifyPending = false;
 
 /** Open the node's phone verification page; check again when the user comes back. */
@@ -75,6 +96,7 @@ registerScreen("wallet", (_route: Route, page) => {
       session.verified === false ? verifyCard() : null,
       wallets.length ? balanceCard(wallets) : null,
       wallets.length ? sendCard() : null,
+      wallets.length ? bridgeCard() : null,
       walletsCard(),
       wallets.length ? backupCard() : null,
       importCard(),
@@ -124,6 +146,9 @@ registerScreen("wallet", (_route: Route, page) => {
       const cents = parseAmountToCents(amount.value);
       msg.className = "small danger";
       if (!recipient) return void (msg.textContent = "Enter the recipient's wallet ID.");
+      if (EVM_ADDRESS.test(recipient)) {
+        return void (msg.textContent = "That's an Ethereum address, not a GFC wallet. To send GFC there, use Bridge to Base below.");
+      }
       if (recipient === selected) return void (msg.textContent = "That's this wallet. Choose another recipient.");
       if (!cents) return void (msg.textContent = "Enter an amount like 2.50 (up to two decimals).");
       const ok = await confirmSheet("Send GFC?",
@@ -147,6 +172,114 @@ registerScreen("wallet", (_route: Route, page) => {
     };
     return h("div.box", h("h2", "Send GFC"), h("label", "To"), to, h("label", "Amount (GFC)"), amount, h("label", "Note"), note,
       h("div.row", { style: "margin-top:12px" }, btn, msg));
+  };
+
+  /** Bridge to Base: shown only once the node lists a chain with a deployed token. */
+  const bridgeCard = () => {
+    const box = h("div.box", { style: "display:none" });
+    api.bridgeInfo().then((info) => {
+      const chains = info.chains.filter((c) => c.token_address);
+      if (!alive || !info.enabled || !chains.length) return;
+      box.style.display = "";
+      fillBridge(box, info, chains);
+    }).catch(() => { /* no bridge on this node */ });
+    return box;
+  };
+
+  const fillBridge = (box: HTMLElement, info: BridgeInfo, chains: BridgeChain[]) => {
+    let chain = chains[0];
+    const picker = chains.length > 1
+      ? h("select", { onchange: (e: Event) => { chain = chains[Number((e.target as HTMLSelectElement).value)]; } },
+        chains.map((c, i) => h("option", { value: String(i) }, c.name)))
+      : null;
+    const evm = h("input", { placeholder: "0x… your address on Base (MetaMask, Coinbase Wallet…)", spellcheck: false,
+      value: remembered() }) as HTMLInputElement;
+    const amount = h("input", { placeholder: `at least ${fmtGfc(info.min_deposit_cents)}`, inputmode: "decimal" }) as HTMLInputElement;
+    const quote = h("div.small.muted", "…");
+    const msg = h("div.small");
+    const btn = h("button.btn", "Bridge to Base") as HTMLButtonElement;
+
+    api.bridgeQuote(selected).then((q) => {
+      quote.textContent = `You can bridge ${fmtGfc(q.bridgeable_cents)} now.` + (q.held_cents > 0
+        ? ` ${fmtGfc(q.held_cents)} is free credit (welcome grant, invite and post bonuses) that can be bridged ${q.faucet_hold_days} days after it arrived.`
+        : "");
+    }).catch(() => (quote.textContent = ""));
+
+    btn.onclick = async () => {
+      const addr = evm.value.trim();
+      const cents = parseAmountToCents(amount.value);
+      msg.className = "small danger";
+      if (!EVM_ADDRESS.test(addr) || /^0x0{40}$/.test(addr)) return void (msg.textContent = "Enter your Base address: 0x and 40 characters.");
+      if (!cents) return void (msg.textContent = "Enter an amount like 150 (up to two decimals).");
+      if (cents < info.min_deposit_cents) return void (msg.textContent = `The minimum is ${fmtGfc(info.min_deposit_cents)}.`);
+      const receive = cents - info.relay_fee_cents;
+      const ok = await confirmSheet(`Bridge ${fmtGfc(cents)} to ${chain.name}?`,
+        h("div",
+          h("p", "You receive ", h("b.gold", fmtGfc(receive)), ` on ${chain.name}, at`),
+          h("p.mono.small", addr),
+          info.relay_fee_cents ? h("p.small", `${fmtGfc(info.relay_fee_cents)} stays with the bridge to pay for gas.`) : null,
+          h("p.small", "It usually arrives within an hour: the ledger waits for the deposit to be final, then the bridge's attesters check it and mint."),
+          h("p.small.danger", "Check the address. GFC sent to an address you don't control can't be recovered."),
+          h("p.small.muted", info.notice)),
+        `Bridge ${fmtGfc(cents)}`);
+      if (!ok) return;
+      btn.disabled = true;
+      msg.className = "small muted";
+      msg.textContent = "Depositing…";
+      try {
+        const r = await api.bridgeDeposit(selected, chain.chain_id, addr, cents);
+        remember(addr);
+        toast(`Deposited ${fmtGfc(r.amount_cents)}: ${fmtGfc(r.mint_cents)} will arrive on ${chain.name}.`);
+        render();
+        renderRightRail();
+      } catch (e) {
+        msg.className = "small danger";
+        msg.textContent = String((e as Error).message);
+        btn.disabled = false;
+      }
+    };
+
+    clear(box,
+      h("h2", "Bridge to Base"),
+      h("p.muted.small", `Move GFC to ${chain.name} as a token you can hold in your own wallet and trade on Uniswap. `
+        + `Minimum ${fmtGfc(info.min_deposit_cents)}` + (info.relay_fee_cents ? `, ${fmtGfc(info.relay_fee_cents)} fee.` : ".")),
+      picker, h("label", "Your Base address"), evm, h("label", "Amount (GFC)"), amount, quote,
+      h("div.row", { style: "margin-top:12px" }, btn, msg),
+      bringBack(chain));
+  };
+
+  /** Bringing GFC back: two transactions from the user's own wallet, prepared here to paste into MetaMask. */
+  const bringBack = (chain: BridgeChain) => {
+    const amount = h("input", { placeholder: "e.g. 50", inputmode: "decimal" }) as HTMLInputElement;
+    const out = h("div");
+    const explorer = EXPLORERS[chain.chain_id];
+    const field = (label: string, value: string) => h("div", { style: "margin:8px 0" },
+      h("div.small.muted", label),
+      h("div.row", h("div.mono.small.grow", { style: "word-break:break-all" }, value),
+        h("button.btn.secondary.small", { onclick: async () => (await copyText(value)) && toast("Copied.") }, "Copy")));
+    const show = () => {
+      const cents = parseAmountToCents(amount.value);
+      if (!cents || !chain.bridge_address || !chain.token_address) return clear(out);
+      clear(out,
+        h("p.small", "In MetaMask, turn on Settings → Transactions → Show hex data once. Then send two transactions from "
+          + `the wallet holding the GFC, on ${chain.name}, each with amount 0 ETH:`),
+        h("p.small", h("b", "1. Allow the bridge to take it."), " Send to the GFC token:"),
+        field("To (GFC token)", chain.token_address),
+        field("Hex data", approveData(chain.bridge_address, cents)),
+        h("p.small", h("b", "2. Bridge it back."), " After the first one confirms, send to the bridge:"),
+        field("To (bridge)", chain.bridge_address),
+        field("Hex data", bridgeOutData(cents, selected)),
+        h("p.small.muted", `${fmtGfc(cents)} then arrives in this wallet (${shortId(selected)}) once ${chain.name} finalizes the `
+          + "block, which can take an hour or more. Never sign anything that asks to upgrade your account to a smart account."),
+        explorer ? h("button.btn.secondary.small", { onclick: () => openExternal(`${explorer}/address/${chain.bridge_address}`) },
+          "View the bridge on the explorer") : null);
+    };
+    amount.oninput = show;
+    return h("details", { style: "margin-top:16px" },
+      h("summary", "Bring GFC back from Base"),
+      chain.bridge_address
+        ? h("div", h("label", "Amount (GFC)"), amount, out)
+        : h("p.small.muted", "Not available on this node yet."));
   };
 
   const walletsCard = () => {

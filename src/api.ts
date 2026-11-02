@@ -157,6 +157,19 @@ export function parseAmountToCents(raw: string): number | null {
   return cents > 0 && Number.isSafeInteger(cents) ? cents : null;
 }
 
+export interface BridgeChain {
+  chain_id: number; name: string; escrow_wallet: string; token_address: string | null; bridge_address?: string | null;
+}
+export interface BridgeInfo {
+  enabled: boolean; chains: BridgeChain[]; min_deposit_cents: number; relay_fee_cents: number;
+  faucet_hold_days: number; notice: string;
+}
+export interface BridgeQuote {
+  balance_cents: number; bridgeable_cents: number; held_cents: number; faucet_hold_days: number;
+  min_deposit_cents: number; relay_fee_cents: number;
+}
+export interface BridgeDeposit { ok: boolean; tx_hash: string; amount_cents: number; mint_cents: number; status: string }
+
 // ---- The client --------------------------------------------------------------------
 
 type Query = Record<string, string | number | undefined>;
@@ -409,6 +422,18 @@ export class GfcApi {
   send(sender: string, recipient: string, cents: number, reason: string) {
     return this.request<Tx>("POST", "/transactions/create", {
       auth: "required", json: { sender, recipient: recipient.trim(), amount: (cents + 0.25) / 100, reason },
+    });
+  }
+  // Bridge to Base (the node's app_bridge.py)
+  bridgeInfo() {
+    return this.request<BridgeInfo>("GET", "/bridge/info");
+  }
+  bridgeQuote(walletId: string) {
+    return this.request<BridgeQuote>("GET", "/bridge/quote", { query: { wallet_id: walletId } });
+  }
+  bridgeDeposit(walletId: string, chainId: number, evmAddress: string, cents: number) {
+    return this.request<BridgeDeposit>("POST", "/bridge/deposit", {
+      auth: "required", json: { wallet_id: walletId, chain_id: chainId, evm_address: evmAddress, amount: cents / 100 },
     });
   }
   exportBackup(password: string, passphrase: string) {
