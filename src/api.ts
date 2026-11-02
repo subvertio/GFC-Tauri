@@ -189,6 +189,14 @@ interface ReqOpts {
   passwordCheck?: boolean;
 }
 
+/**
+ * A 401 about a locked wallet key, not the session: older nodes answer that after a password reset
+ * without the recovery code, and logging in again never fixes it, so it must not sign the user out.
+ */
+const LOCKED_KEY = /unlock your (wallet )?keys?|wallet key is locked/i;
+const LOCKED_KEY_HELP = "Your wallet's key is locked: your password was reset without your recovery code. "
+  + "Import a wallet backup in Wallet to unlock it, or create a new wallet there and use that.";
+
 function errorMessage(status: number, body: unknown): string {
   const d = (body as { detail?: unknown })?.detail;
   if (typeof d === "string" && d) return d;
@@ -271,6 +279,7 @@ export class GfcApi {
       const msg = errorMessage(res.status, data);
       if (res.status === 401 && auth !== "none" && this.token) {
         if (o.passwordCheck && /invalid credentials|wrong password/i.test(msg)) throw new ApiError(401, "Wrong password.", msg);
+        if (LOCKED_KEY.test(msg)) throw new ApiError(401, LOCKED_KEY_HELP, msg);
         this.onUnauthorized();
       }
       throw new ApiError(res.status, msg);
@@ -515,6 +524,7 @@ export class GfcApi {
         if (!res.description && res.desc) res.description = res.desc;
         return { result: res, attempts: attempt };
       }
+      if (r.status === 401 && LOCKED_KEY.test(errorMessage(401, data))) throw new ApiError(401, LOCKED_KEY_HELP, r.body);
       if (r.status === 401) this.onUnauthorized();
       if (r.status === 413) throw new ApiError(413, "The file is too big for the node.");
       throw new ApiError(r.status, errorMessage(r.status, data), r.body);
