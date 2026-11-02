@@ -4,25 +4,28 @@
 // that's remembered (node choice, known wallets, last-seen balances) is in localStorage.
 
 import { invoke } from "@tauri-apps/api/core";
-import { api, inTauri, LIVE_NODE, normalizeBaseUrl, type PlayLinks } from "./api";
+import { api, inTauri, HOME_NODE, normalizeBaseUrl, type PlayLinks } from "./api";
 
 const PREFS_KEY = "gfc.prefs.v1";
 const SECRET_KEY = "session";
-// Plain-browser dev runs (vite without Tauri) have no keychain: keep the session for the tab only.
-const DEV_STORE = !inTauri && import.meta.env.DEV;
+// Browsers have no keychain. Dev runs keep the session for the tab only; the iPhone web app
+// (Add to Home Screen) keeps it in its own storage, which only this app's origin can read, so
+// people don't log in at every launch. That token can spend: the node serves the web app with a
+// strict Content-Security-Policy (its own scripts only) so injected script can't read it, and
+// unticking "stay logged in" keeps it in memory only.
+const BROWSER_STORE: Storage | null = inTauri ? null : import.meta.env.DEV ? sessionStorage : localStorage;
 
 async function secretGet(): Promise<string | null> {
-  if (DEV_STORE) return sessionStorage.getItem(SECRET_KEY);
-  if (!inTauri) return null;
+  if (BROWSER_STORE) return BROWSER_STORE.getItem(SECRET_KEY);
   return invoke<string | null>("plugin:secure-store|get", { key: SECRET_KEY });
 }
 async function secretSet(value: string) {
-  if (DEV_STORE) return sessionStorage.setItem(SECRET_KEY, value);
-  if (inTauri) await invoke("plugin:secure-store|set", { key: SECRET_KEY, value });
+  if (BROWSER_STORE) return BROWSER_STORE.setItem(SECRET_KEY, value);
+  await invoke("plugin:secure-store|set", { key: SECRET_KEY, value });
 }
 async function secretDelete() {
-  if (DEV_STORE) return sessionStorage.removeItem(SECRET_KEY);
-  if (inTauri) await invoke("plugin:secure-store|delete", { key: SECRET_KEY });
+  if (BROWSER_STORE) return BROWSER_STORE.removeItem(SECRET_KEY);
+  await invoke("plugin:secure-store|delete", { key: SECRET_KEY });
 }
 
 export interface KnownWallet { owner: string; node: string; id: string; name: string; backedUp: boolean; lastSeenCents: number }
@@ -81,7 +84,7 @@ class Session {
 
   /** On launch: pick the node, then restore a remembered session for it. */
   async restore(): Promise<boolean> {
-    api.baseUrl = normalizeBaseUrl(this.prefs.nodeOverride) || LIVE_NODE;
+    api.baseUrl = normalizeBaseUrl(this.prefs.nodeOverride) || HOME_NODE;
     api.onUnauthorized = () => this.clear(true);
     try {
       const raw = await secretGet();
@@ -152,7 +155,7 @@ class Session {
       this.clear();
       api.baseUrl = url;
     }
-    this.prefs.nodeOverride = url === LIVE_NODE ? "" : url;
+    this.prefs.nodeOverride = url === HOME_NODE ? "" : url;
     this.savePrefs();
     this.emit();
     return true;

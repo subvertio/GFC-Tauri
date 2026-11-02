@@ -1,0 +1,17 @@
+{
+  "name": "Galactic Federation Coin",
+  "short_name": "GFC",
+  "description": "Share your work, get discovered, and earn GFC when people view it.",
+  "id": "/app/web/",
+  "start_url": "/app/web/",
+  "scope": "/app/web/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05010f",
+  "theme_color": "#05010f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,7 +1,7 @@
 // Edit profile: photo, first and last name, and bio. The photo is cropped to a square and
 // sent as a 512 px JPEG (the node takes JPEG, PNG, GIF or WebP up to 5 MB).
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { api, inTauri, type Profile } from "../api";
 import { registerScreen, back, go } from "../app";
 import { session } from "../session";

@@ -3,7 +3,7 @@
 // GFC Network": the poster picks where to share it (X, LinkedIn, Substack) and, for a
 // video, how long the public preview is (5, 10 or 30 s). One Share click does them all.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { api, inTauri, isAndroid, titleFromBody, ApiError, type UploadResult } from "../api";
 import { registerScreen, back, go, askToVerify, type Route } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
@@ -135,7 +135,6 @@ registerScreen("post", (route, page) => {
   // Windows' file dialog takes about half a second to appear (it lists the folder first),
   // so the button says so at once, and a second click can't queue a second dialog.
   const pick = async (kind: "media" | "file", btn?: HTMLButtonElement) => {
-    if (!inTauri) return toast("Picking files needs the desktop app.", true);
     if (uploading) return toast("Wait for the current upload to finish, or cancel it.");
     if (btn?.disabled) return;
     const label = btn?.textContent ?? "";
