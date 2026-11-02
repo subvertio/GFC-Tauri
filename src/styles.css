@@ -243,7 +243,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .comment .who { margin-bottom: 2px; }
 
 .history-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
-.history-row .amt { font-weight: 700; white-space: nowrap; }
+.history-row > .grow { min-width: 0; }
+.history-row .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-row .amt { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .history-row .amt.in { color: var(--success); }
 .mono { font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; }
 
