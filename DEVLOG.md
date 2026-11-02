@@ -120,6 +120,22 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
+## 0.2.4 (2026-11-02): Windows
+
+Published 2026-11-02 ~05:15 Central: Windows only (3.3 MB zip, signed; SHA-256
+`e721662554adee931b6e091b4d71a0caba90e0fad97feefe72ca5bbf07ec431d`). `check-downloads.ps1
+-Windows 0.2.4 -Android 0.2.3` passed. The first real self-update (0.2.3 -> 0.2.4). Android
+stays at 0.2.3 until the next Android build.
+
+**New**
+
+- **Bridge to Base** (PR #1): moves GFC from a ledger wallet to the user's Base address as the
+  GFC token. Live on mainnet: token `0xc32695f463947170EC142F7987DaC93aa7243336`, bridge
+  `0x31A5e7bA6210aaD1e6Aa9b15a263E3F5ed5AfA38` (the node's `/bridge/info`). Send refuses 0x addresses.
+- **Bring GFC back** (PR #3): step-by-step Blockscout Write contract instructions (approve, then
+  bridgeOut) with copy buttons, because MetaMask Mobile's send screen has no hex data field.
+- **History** (PR #2): readable bridge rows; long notes no longer run into the amount.
+
 ## 0.2.3 (2026-11-01): Windows and Android
 
 Published 2026-11-01 ~17:32 UTC: Windows (3.4 MB zip, signed for self-updates; the live
