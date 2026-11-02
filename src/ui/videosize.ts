@@ -3,7 +3,7 @@
 // resolution. The same estimate as the node's audio_stream.estimated_optimized_bytes, from the
 // video's length and size (its header only), so people find out before a long upload.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { fmtBytes } from "./dom";
 
 export const MAX_POST = 5 * 1024 ** 3;         // what the node keeps (config.MAX_UPLOAD_BYTES)

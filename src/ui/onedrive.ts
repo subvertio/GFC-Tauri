@@ -2,7 +2,7 @@
 // the OneDrive app. When it isn't running they can't be posted, so say so, offer to start
 // it, and say when it's back.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { h, clear } from "./dom";
 
 /** True when some of these picked files are online-only in OneDrive and OneDrive isn't running. */

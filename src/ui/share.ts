@@ -4,7 +4,7 @@
 // caption. Substack has no posting link: the text and link go to the clipboard and its
 // Notes composer opens.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { api, inTauri, isAndroid, type UploadResult } from "../api";
 import { copyText, openExternal } from "./actions";
 

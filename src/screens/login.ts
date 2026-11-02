@@ -1,6 +1,6 @@
 // Log in, create an account (the recovery code is shown once), forgot password, and the node switcher.
 
-import { api, LIVE_NODE, ApiError, isAndroid } from "../api";
+import { api, HOME_NODE, ApiError, isAndroid } from "../api";
 import { registerScreen, go, home, type Route } from "../app";
 import { session } from "../session";
 import { h, toast, sheet } from "../ui/dom";
@@ -110,7 +110,7 @@ registerScreen("login", (route, page) => {
     h("div.box",
       h("h2", "Node"), nodeText,
       h("div.row.wrap", { style: "margin-top:8px" },
-        h("button.btn.secondary.small", { onclick: () => useNode(LIVE_NODE) }, "Live node"),
+        h("button.btn.secondary.small", { onclick: () => useNode(HOME_NODE) }, "Live node"),
         h("button.btn.secondary.small", { onclick: () => useNode(TEST_NODE) }, "Local test node")),
       h("div.row", { style: "margin-top:8px" }, nodeBox, h("button.btn.small", { onclick: () => useNode(nodeBox.value) }, "Use")),
       h("p.muted.small", "Switching nodes logs you out: an account lives on one node."),

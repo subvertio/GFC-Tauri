@@ -4,8 +4,11 @@
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { invoke, Channel } from "@tauri-apps/api/core";
+import { webUpload } from "./native";
 
 export const LIVE_NODE = "https://node.galacticfederation.tech";
+/** The node the app uses unless the user picks another: the web app's is the node serving it. */
+export const HOME_NODE = import.meta.env.MODE === "web" ? location.origin : LIVE_NODE;
 export const SHARE_BASE = "https://node.galacticfederation.tech";
 export const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -216,7 +219,7 @@ function errorMessage(status: number, body: unknown): string {
 }
 
 export class GfcApi {
-  baseUrl = LIVE_NODE;
+  baseUrl = HOME_NODE;
   token = "";
   username = "";
   onUnauthorized: () => void = () => {};
@@ -494,10 +497,18 @@ export class GfcApi {
     if (!this.token) throw new ApiError(401, "Please log in first.");
     const delays = [2000, 6000];
     for (let attempt = 1; ; attempt++) {
-      const ch = new Channel<{ sent: number; total: number }>();
-      ch.onmessage = (p) => onProgress(p.sent, p.total);
       let r: { status: number; body: string };
-      try {
+      if (!inTauri) {
+        r = await webUpload({
+          uploadId, baseUrl: this.baseUrl, token: this.token,
+          fileId: args.fileId ?? null, text: args.text ?? null,
+          title: args.title, description: args.description, tags: args.tags, exclusive: args.exclusive,
+          teaserSeconds: args.exclusive && args.teaserSeconds ? args.teaserSeconds : null,
+          thumbnail: args.thumbnail ?? null, onProgress,
+        }).catch((e) => { throw new ApiError(-1, String((e as Error).message ?? e)); });
+      } else try {
+        const ch = new Channel<{ sent: number; total: number }>();
+        ch.onmessage = (p) => onProgress(p.sent, p.total);
         r = await invoke("upload_seed", {
           uploadId, baseUrl: this.baseUrl, token: this.token,
           fileId: args.fileId ?? null, text: args.text ?? null,

@@ -1,8 +1,8 @@
 // Wallet: recovery code (once), phone verification, wallets, backup (export/import),
 // account recovery, balance, send (with a confirmation), Bridge to Base, history.
 
-import { invoke } from "@tauri-apps/api/core";
-import { api, inTauri, parseAmountToCents, ApiError, type Tx, type BridgeChain, type BridgeInfo } from "../api";
+import { invoke } from "../native";
+import { api, parseAmountToCents, ApiError, type Tx, type BridgeChain, type BridgeInfo } from "../api";
 import { registerScreen, back, renderRightRail, shortId, type Route } from "../app";
 import { session } from "../session";
 import { h, clear, toast, confirmSheet, fmtGfc } from "../ui/dom";
@@ -345,9 +345,7 @@ registerScreen("wallet", (_route: Route, page) => {
         const backup = await api.exportBackup(pw.value, pp.value);
         if (!backup?.sealed) throw new Error("Unexpected response from the node.");
         const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-        const path = inTauri
-          ? await invoke<string | null>("save_text", { defaultName: `${session.user}-wallet-backup-${stamp}.json`, contents: JSON.stringify(backup, null, 2) })
-          : null;
+        const path = await invoke<string | null>("save_text", { defaultName: `${session.user}-wallet-backup-${stamp}.json`, contents: JSON.stringify(backup, null, 2) });
         if (!path) {
           msg.textContent = "The backup was made but wasn't saved to a file.";
         } else {
@@ -377,7 +375,6 @@ registerScreen("wallet", (_route: Route, page) => {
     const msg = h("div.small");
     const btn = h("button.btn.secondary", "Choose backup file and import") as HTMLButtonElement;
     btn.onclick = async () => {
-      if (!inTauri) return;
       msg.className = "small danger";
       if (!pp.value) return void (msg.textContent = "Enter the backup's passphrase.");
       const f = await invoke<{ id: string; name: string } | null>("pick_file", { kind: "backup" });

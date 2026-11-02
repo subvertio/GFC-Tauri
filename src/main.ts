@@ -21,6 +21,10 @@ async function boot() {
   if (restored) afterLogin();
   startUpdateChecks();
   watchEarnings();
+  // The iPhone web app (npm run build:web): installable, and opens offline with the last version
+  if (import.meta.env.MODE === "web" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+  }
 }
 
 boot();

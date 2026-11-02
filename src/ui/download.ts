@@ -1,7 +1,7 @@
 // A zip post ("download"): name, size, what's inside, the virus-scan result, and a Download
 // button once the node's scan has passed. Exclusive downloads get their link from /play.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../native";
 import { api, ApiError, inTauri, type Seed } from "../api";
 import { go, askToVerify } from "../app";
 import { h, clear, fmtBytes, toast } from "./dom";
@@ -51,7 +51,6 @@ export function downloadBox(s: Seed): HTMLElement {
   }
   const btn = h("button.btn.small", "Download") as HTMLButtonElement;
   btn.onclick = async () => {
-    if (!inTauri) return toast("Downloading needs the desktop app.", true);
     btn.disabled = true;
     btn.textContent = "Downloading…";
     try {
@@ -60,6 +59,14 @@ export function downloadBox(s: Seed): HTMLElement {
         const links = await playLinks(s);
         if (!links) return box.replaceWith(downloadBox(s)); // not allowed after all: show why
         url = api.media(links.full);
+      }
+      if (!inTauri) {  // the web app: the browser downloads it (iPhone: into Files)
+        const a = h("a", { href: url, download: d.name, rel: "noopener" }) as HTMLAnchorElement;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast("Downloading: look in your Downloads (on iPhone, the Files app).");
+        return;
       }
       const path = await invoke<string | null>("download_file", { url, defaultName: d.name });
       if (path) toast(`Saved to ${path}`);
