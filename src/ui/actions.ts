@@ -1,8 +1,8 @@
 // Post actions shared by feed cards and the post screen: like, bookmark, share, the •••
-// sheet (report, block, edit, edit history).
+// sheet (report, block, edit, edit history, delete).
 
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, inTauri, kindOf, titleFromBody, type Seed } from "../api";
+import { api, ApiError, inTauri, kindOf, titleFromBody, type Seed } from "../api";
 import { session } from "../session";
 import { go } from "../app";
 import { h, sheet, toast, confirmSheet, timeAgo, clear } from "./dom";
@@ -106,7 +106,7 @@ const REASONS: [string, string][] = [
   ["copyright", "Stolen or copyrighted work"], ["other", "Something else"],
 ];
 
-/** The ••• sheet. `onHidden` runs when the post should leave the screen (reported or blocked). */
+/** The ••• sheet. `onHidden` runs when the post should leave the screen (reported, blocked or deleted). */
 export async function moreMenu(s: Seed, onHidden: () => void) {
   if (!session.loggedIn) return toast("Log in to report a post or block an account.");
   const mine = session.isMine(s);
@@ -116,6 +116,7 @@ export async function moreMenu(s: Seed, onHidden: () => void) {
         h("button.btn.secondary.block", { onclick: () => close("promote") }, "Promote this post (ad)"),
         h("button.btn.secondary.block", { onclick: () => close("edit") }, "Edit post"),
         s.edited_at ? h("button.btn.secondary.block", { onclick: () => close("history") }, "Edit history") : null,
+        h("button.btn.danger.block", { onclick: () => close("delete") }, "Delete post"),
       ] : [
         h("button.btn.secondary.block", { onclick: () => close("report") }, "Report post"),
         h("button.btn.danger.block", { onclick: () => close("block") }, `Block @${s.owner}`),
@@ -125,6 +126,7 @@ export async function moreMenu(s: Seed, onHidden: () => void) {
   if (choice === "promote") go({ name: "promote", seedId: s.id, seed: s });
   else if (choice === "edit") editPost(s);
   else if (choice === "history") editHistory(s);
+  else if (choice === "delete") deletePost(s, onHidden);
   else if (choice === "report") {
     const reason = await sheet<string>((close) =>
       h("div", h("h2", "Why are you reporting this post?"),
@@ -150,6 +152,23 @@ export async function moreMenu(s: Seed, onHidden: () => void) {
       toast(String((e as Error).message), true);
     }
   }
+}
+
+export async function deletePost(s: Seed, onHidden: () => void) {
+  if (!(await confirmSheet("Delete this post?",
+    "It's removed from GFC for everyone, on every node, with its likes, comments and files. This can't be undone. " +
+    "GFC it already earned or was paid isn't reversed: the ledger never changes.", "Delete post", true))) return;
+  try {
+    const r = await api.deletePost(s.id);
+    toast(r.synced ? "Post deleted." : "Post deleted on this node.");
+  } catch (e) {
+    // Already gone (deleted from another device): leave the screen all the same
+    if (!(e instanceof ApiError && (e.status === 404 || e.status === 410))) return toast(String((e as Error).message), true);
+    toast("This post was already deleted.");
+  }
+  session.deleted.add(s.id);
+  session.playCache.delete(s.id);
+  onHidden();
 }
 
 export async function editPost(s: Seed, currentText?: string) {
