@@ -85,6 +85,8 @@ export interface Tx {
 }
 export interface Comment { id: string; seed_id: string; owner: string; text: string; created_at: string }
 export interface Edit { id: string; title: string; description: string; tags: string[]; edited_at: string }
+/** DELETE /seeds/{id}. The ledger is never changed: `note` says so in words to show. */
+export interface Deleted { id: string; deleted: boolean; already_deleted: boolean; synced: boolean; files_removed: boolean; ledger_unchanged: boolean; note: string }
 export interface PlayLinks { exclusive: boolean; full: string | null; stream: string | null; teaser?: string | null; text?: string | null; expires_in: number | null }
 export interface VerifyStatus { verified: boolean; rewards?: { grant?: number; first_post_bonus?: number }; wallets: string[] }
 export interface Health { network: string; phone_required_to_post: boolean }
@@ -418,6 +420,10 @@ export class GfcApi {
     return this.request<{ title: string; description: string; tags: string[]; edited_at: string }>("POST", `/seeds/${encodeURIComponent(id)}/edit`, {
       auth: "required", form: fields,
     });
+  }
+  /** Delete your own post everywhere (signed by its wallet and synced to every node). */
+  deletePost(id: string) {
+    return this.request<Deleted>("DELETE", `/seeds/${encodeURIComponent(id)}`, { auth: "required" });
   }
   async edits(id: string) {
     return (await this.request<{ edits: Edit[] }>("GET", `/seeds/${encodeURIComponent(id)}/edits`, { auth: "optional" })).edits ?? [];

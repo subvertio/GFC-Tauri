@@ -63,6 +63,8 @@ class Session {
   prefs = loadPrefs();
   blocked = new Set<string>();
   reported = new Set<string>();
+  /** Posts you deleted this run, so copies already on screen elsewhere drop out too. */
+  deleted = new Set<string>();
   /** null = unknown */
   verified: boolean | null = null;
   /** The node's /health rule; false on test nets. null = unknown. */
@@ -229,7 +231,7 @@ class Session {
   }
 
   isHiddenForMe(s: { id: string; owner: string }) {
-    return this.reported.has(s.id) || this.blocked.has(s.owner.toLowerCase());
+    return this.reported.has(s.id) || this.deleted.has(s.id) || this.blocked.has(s.owner.toLowerCase());
   }
 
   isMine(s: { owner: string }) {
