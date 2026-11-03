@@ -120,6 +120,26 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
+## 0.2.5 (2026-11-03): Windows, Android and iPhone
+
+New: **Delete post** (⋯ menu, with a confirmation; the node removes it everywhere and keeps the
+ledger as is), plus what was waiting since 0.2.4: Link Discord, the Invited by field at sign-up,
+and no logout on a locked-key 401.
+
+**The updater key was replaced.** The password for the 2026-11-01 key was lost, so
+`D:\GFCKeys\gfc-updater.key` is a new key made 2026-11-03 (the old one is kept as
+`gfc-updater.key.lost-password-20261103-1332`). Its public half is in `tauri.conf.json` and the
+node's `GFC_UPDATER_PUBKEY`. Apps on 0.2.3 or 0.2.4 trust only the old key, so they **don't update
+themselves to 0.2.5**: Windows users install 0.2.5 once by hand from `/app/windows` (over the top,
+no uninstall). From 0.2.5 on, self-updates work again with the new key.
+
+Published 2026-11-03 ~13:55 Central. Windows: 3.4 MB zip, signed with the new key, SHA-256
+`953ac98b5953acca0fa27ebb8cdc5d65b5d063594bd3c5d5d26b41f063e49d85`. Android: 10.6 MB APK,
+version code 2005, release key checked, SHA-256
+`699a38f510c2c943394245288cc2c628d35671b31975b1488f77f01d7527ebc4`. iPhone web app published as
+`0.2.5-delete-posts` (zip it with `tar -a -c -f`, not `Compress-Archive`: the node refuses
+backslash paths). `check-downloads.ps1 -Version 0.2.5` passed. Not yet tried on the phones.
+
 ## 0.2.4 (2026-11-02): Windows and Android
 
 Published 2026-11-02 ~05:15 Central: Windows only (3.3 MB zip, signed; SHA-256
