@@ -133,6 +133,13 @@ audio-only clips, so nothing is attached. The node and the iPhone web app
 Signed with the 2026-11-03 updater key, so 0.2.5 installs update themselves. Apps on 0.2.4 or
 older still need one manual install (see 0.2.5).
 
+Published 2026-11-05 ~8:00 Central. Windows: 3.3 MB zip, signed with the 2026-11-03 updater key
+(key ID `CCF8D1B8A8E3A4FF`), SHA-256
+`da35ffa1c5f15eadcea47725eb6601f2f158a395393fa0694a925a09ce7cbfd2`. Android: 10.6 MB APK,
+version code 2006, release key checked (`323133e4…725c`), SHA-256
+`9b17bfc0bb4ed73a7657c305d60eceb64a49d2d509fbe6351a3dc1a208bb625a`. `check-downloads.ps1 -Version
+0.2.6` passed. Not yet tried on the phones.
+
 ## 0.2.5 (2026-11-03): Windows, Android and iPhone
 
 New: **Delete post** (⋯ menu, with a confirmation; the node removes it everywhere and keeps the
