@@ -78,7 +78,7 @@ export function seedCard(s: Seed, onHidden: (id: string) => void): CardHandle {
 
 function unlockLink(s: Seed, kind: string, access: ReturnType<typeof exclusiveAccess>) {
   if (!s.exclusive || s.download) return null; // a download's box has its own link
-  const k = kind === "video" ? "video" : "text";
+  const k = kind === "video" ? "video" : kind === "audio" ? "audio" : "text";
   const label = unlockText(k, access);
   if (label) {
     return h("a.gold", { href: "#", style: "display:inline-block;margin-top:8px;font-weight:700", onclick: (e: Event) => {
@@ -185,17 +185,49 @@ function mediaFor(s: Seed, kind: string, access: ReturnType<typeof exclusiveAcce
     }
     case "video":
       return videoBox(s, access, disposers);
-    case "audio": {
-      const audio = h("audio", { controls: true, preload: "none", src: api.media(s.stream || s.full) }) as HTMLAudioElement;
-      trackPlayer(audio, s);
-      return h("div.media.audio", thumbImg(s), audio);
-    }
+    case "audio":
+      return audioBox(s, access);
     default: {
       if (s.download) return downloadBox(s);
       const img = thumbImg(s);
       return h("div.media", img ?? h("div.media.text-only", { style: "border:0;margin:0" }, `${KIND_LABEL.other} · open the post to download it`));
     }
   }
+}
+
+/**
+ * A track. Exclusive ones start on the public preview; accounts that may hear the full track
+ * get it on first play (signed /play links), so scrolling the feed doesn't fetch links.
+ */
+function audioBox(s: Seed, access: ReturnType<typeof exclusiveAccess>) {
+  const locked = s.exclusive && (access === "login" || access === "verify");
+  const preview = s.teaser ? api.media(s.teaser) : "";
+  const audio = h("audio", { controls: true, preload: "none", src: s.exclusive ? preview : api.media(s.stream || s.full) }) as HTMLAudioElement;
+  trackPlayer(audio, s);
+  const unlock = async (play: boolean) => {
+    try {
+      const links = await playLinks(s);
+      if (links) audio.src = api.media(links.stream || links.full);
+    } catch {
+      /* keep the preview */
+    }
+    if (play) audio.play().catch(() => {});
+  };
+  if (s.exclusive && !locked) {
+    if (!preview) unlock(false); // nothing to start on: fetch the full track's link now
+    else {
+      let unlocked = false;
+      audio.addEventListener("play", () => {
+        if (unlocked) return;
+        unlocked = true;
+        audio.pause();
+        unlock(true);
+      });
+    }
+  }
+  if (s.exclusive && locked && !preview) return h("div.media.audio", thumbImg(s), h("div.note", "The preview isn't ready yet."));
+  const tag = s.exclusive && locked && s.thumb ? h("span.tag", `${s.teaser_seconds ?? 5}s preview`) : null;
+  return h("div.media.audio", thumbImg(s), tag, audio);
 }
 
 function videoBox(s: Seed, access: ReturnType<typeof exclusiveAccess>, disposers: (() => void)[]) {

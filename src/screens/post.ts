@@ -1,7 +1,7 @@
 // New post: title, then text, then media (optional), then Post. Text-only posts are
-// uploaded as a small .txt. Videos, text posts and downloads (.zip) can be "Exclusive to
-// GFC Network": the poster picks where to share it (X, LinkedIn, Substack) and, for a
-// video, how long the public preview is (5, 10 or 30 s). One Share click does them all.
+// uploaded as a small .txt. Videos, audio, text posts and downloads (.zip) can be "Exclusive
+// to GFC Network": the poster picks where to share it (X, LinkedIn, Substack) and, for a
+// video or a track, how long the public preview is (5, 10 or 30 s). One Share click does them all.
 
 import { invoke } from "../native";
 import { api, inTauri, isAndroid, titleFromBody, ApiError, type UploadResult } from "../api";
@@ -24,6 +24,10 @@ export const MAX_UPLOAD = MAX_POST;
 const VIDEO_EXT = ["mp4", "mov", "webm", "mkv", "avi", "wmv", "flv"];
 const ext = (n: string) => n.split(".").pop()!.toLowerCase();
 const isVideo = (p: Picked) => p.mime.startsWith("video/") || VIDEO_EXT.includes(ext(p.name));
+// What the node counts as audio (app_seeds.CONTENT_TYPE_MAP): only these get a preview
+export const AUDIO_EXT = ["mp3", "wav", "ogg", "flac", "aac", "wma", "m4a"];
+export const isAudioName = (name: string) => AUDIO_EXT.includes(ext(name));
+const isAudio = (p: Picked) => isAudioName(p.name);
 const isImage = (p: Picked) => p.mime.startsWith("image/");
 const isModel = (p: Picked) => ["glb", "gltf"].includes(ext(p.name));
 const isZipFile = (p: Picked) => ext(p.name) === "zip";
@@ -93,7 +97,8 @@ registerScreen("post", (route, page) => {
   let videoCheck: BigVideoCheck = { ok: true, note: "" };
   const tooBig = () => !!picked && (isVideo(picked) ? !videoCheck.ok
     : picked.size + 64 * 1024 > (isZipFile(picked) ? MAX_ZIP : MAX_UPLOAD));
-  const exclusiveAllowed = () => !picked || isVideo(picked) || isZipFile(picked);
+  const exclusiveAllowed = () => !picked || isVideo(picked) || isAudio(picked) || isZipFile(picked);
+  const hasPreview = () => !!picked && (isVideo(picked) || isAudio(picked));
 
   const update = () => {
     const can = (!!text.value.trim() || !!picked) && !tooBig() && !uploading;
@@ -103,14 +108,16 @@ registerScreen("post", (route, page) => {
     exclusive.disabled = !allowed || uploading;
     const video = !!picked && isVideo(picked);
     exclusiveOptions.classList.toggle("hidden", !exclusive.checked || !allowed);
-    lengthRow.classList.toggle("hidden", !video);
+    lengthRow.classList.toggle("hidden", !hasPreview());
     lengthRadios.forEach((r) => (r.disabled = uploading));
     exclusiveHint.textContent = !allowed
-      ? "Only videos, text posts and downloads (.zip) can be exclusive."
+      ? "Only videos, audio, text posts and downloads (.zip) can be exclusive."
       : !exclusive.checked
         ? "Only real GFC accounts see all of it; the rest of the world gets a preview to share."
         : video
           ? `A ${previewSeconds()}-second preview is public (share it). Only real GFC accounts can watch the full clip.`
+          : hasPreview()
+          ? `A ${previewSeconds()}-second preview is public (share it). Only real GFC accounts can hear the full track.`
           : picked
             ? "Everyone sees the title. Only real GFC accounts can download it."
             : "Everyone sees the title. Only real GFC accounts can read the post.";
@@ -234,7 +241,7 @@ registerScreen("post", (route, page) => {
       /* post without a thumbnail */
     }
     const targets = [...targetBoxes].filter(([, b]) => b.checked).map(([t]) => t);
-    const seconds = picked && isVideo(picked) ? previewSeconds() : undefined;
+    const seconds = hasPreview() ? previewSeconds() : undefined;
     const ttl = title.value.trim() || (picked ? picked.name.replace(/\.[^.]+$/, "") : titleFromBody(body));
     progress.classList.remove("hidden");
     cancelBtn.classList.remove("hidden");
@@ -278,12 +285,18 @@ registerScreen("post", (route, page) => {
       if (res.content_type === "video") lines.push(res.teaser
         ? `Exclusive to the GFC Network. Here's your ${secs}-second teaser: share it, and the full clip stays for GFC accounts.`
         : "Exclusive to the GFC Network. The teaser is still being made; you can share the link now.");
+      else if (res.content_type === "audio") lines.push(res.teaser
+        ? `Exclusive to the GFC Network. Here's your ${secs}-second preview: share the link, and the full track stays for GFC accounts.`
+        : "Exclusive to the GFC Network. The preview is still being made; you can share the link now.");
       else if (res.download) lines.push("Exclusive to the GFC Network. Share it: people see the title and come to GFC to download it.");
       else lines.push("Exclusive to the GFC Network. Share it: people see the title and come to GFC to read it.");
     }
     if (res.download) lines.push("It's being checked for viruses: it can be downloaded once the scan passes.");
     clear(resultEl, h("div.success", { style: "font-weight:700" }, lines[0]), lines.slice(1).map((l) => h("div", l)));
-    if (res.exclusive && res.teaser) {
+    if (res.exclusive && res.teaser && res.content_type === "audio") {
+      resultEl.append(h("audio", { src: api.media(res.teaser), controls: true, style: "display:block;width:100%;max-width:420px;margin-top:8px" }),
+        h("div.muted.small", `Your ${secs}-second preview. The full track is only on GFC.`));
+    } else if (res.exclusive && res.teaser) {
       resultEl.append(h("div.media", { style: "max-width:320px" },
         h("video", { src: api.media(res.teaser), muted: true, loop: true, autoplay: true, playsInline: true })),
         h("div.muted.small", `Your ${secs}-second teaser. The full clip is only on GFC.`));
@@ -292,14 +305,16 @@ registerScreen("post", (route, page) => {
     const names = targets.map((t) => SHARE_TARGETS.find((x) => x.id === t)!.label);
     const listed = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
     clear(notes);
-    const shareBtn = h("button.btn", `${res.teaser && targets.includes("x") ? "Share teaser" : "Share"} on ${listed}`) as HTMLButtonElement;
+    // Audio previews are shared as a link (X and LinkedIn don't take audio-only clips)
+    const clip = res.content_type === "video" && !!res.teaser;
+    const shareBtn = h("button.btn", `${clip && targets.includes("x") ? "Share teaser" : "Share"} on ${listed}`) as HTMLButtonElement;
     shareBtn.onclick = async () => {
       shareBtn.disabled = true;
       const done = await shareTo(res, targets);
       clear(notes, done.map((n) => h("div", h("b", SHARE_TARGETS.find((x) => x.id === n.target)!.label + ": "), n.note)));
       shareBtn.disabled = false;
     };
-    const wantsClip = !!res.teaser && targets.some((t) => t !== "x");
+    const wantsClip = clip && targets.some((t) => t !== "x");
     clear(after,
       targets.length ? shareBtn : null,
       wantsClip ? h("button.btn.secondary", { onclick: async () => {

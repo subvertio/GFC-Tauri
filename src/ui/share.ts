@@ -43,13 +43,15 @@ export async function saveTeaser(res: UploadResult): Promise<string> {
 /** Share to every chosen target. Returns one short note per target, for the post screen. */
 export async function shareTo(res: UploadResult, targets: ShareTarget[]): Promise<{ target: ShareTarget; note: string }[]> {
   const l = linksFor(res);
+  // Only video teasers are attached: an audio preview is shared as the link (X can't post audio-only)
+  const clip = res.content_type === "video" ? res.teaser ?? null : null;
   // Android: one system share sheet with the teaser clip, text and link; the poster picks
   // the X, LinkedIn or Substack app there. Falls back to the links below if it fails.
   if (isAndroid && inTauri) {
     try {
       const withClip = await invoke<boolean>("share_native", {
         text: `${l.text}
-${l.url}`, baseUrl: api.baseUrl, teaser: res.teaser ?? null, fileName: res.title || `GFC-${res.id.slice(0, 12)}`,
+${l.url}`, baseUrl: api.baseUrl, teaser: clip, fileName: res.title || `GFC-${res.id.slice(0, 12)}`,
       });
       const names = targets.map((t) => SHARE_TARGETS.find((x) => x.id === t)!.label).join(", ");
       return [{ target: targets[0] ?? "x", note: `Pick ${names} in the share sheet${withClip ? ": the teaser clip, text and link are attached" : ": the text and link are attached"}.` }];
@@ -63,7 +65,7 @@ ${l.url}`, baseUrl: api.baseUrl, teaser: res.teaser ?? null, fileName: res.title
   // clipboard. Substack needs text + link; LinkedIn only the text (it has the link).
   const copied = wantsSubstack ? await copyText(`${l.text}\n${l.url}`) : wantsLinkedIn ? await copyText(l.text) : false;
   let savedDir = "";
-  if (targets.includes("x") && res.teaser) savedDir = await saveTeaser(res);
+  if (targets.includes("x") && clip) savedDir = await saveTeaser(res);
 
   const notes: { target: ShareTarget; note: string }[] = [];
   for (const t of targets) {

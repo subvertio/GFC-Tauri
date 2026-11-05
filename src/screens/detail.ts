@@ -60,7 +60,8 @@ registerScreen("seed", (route, page) => {
     };
 
     const isAuto = kind === "text" && s.title === titleFromBody(s.description || "");
-    const unlock = s.exclusive && !s.download ? unlockText(kind === "video" ? "video" : "text", access) : "";
+    const unlock = s.exclusive && !s.download
+      ? unlockText(kind === "video" ? "video" : kind === "audio" ? "audio" : "text", access) : "";
     clear(body,
       h("div.row", { style: "gap:12px;margin-bottom:12px" },
         h("span", { onclick: () => openUser(s.owner) }, avatarFor(s.owner, s.owner_avatar)),
@@ -157,8 +158,24 @@ registerScreen("seed", (route, page) => {
       } else v.src = api.media(s.stream || s.full);
       trackPlayer(v, s, true);
     } else if (kind === "audio") {
-      const a = h("audio", { controls: true, preload: "metadata", src: api.media(s.stream || s.full), style: "width:100%" }) as HTMLAudioElement;
-      el.append(h("div.media.audio", s.thumb ? h("img", { src: api.media(s.thumb), alt: "" }) : null, a));
+      const a = h("audio", { controls: true, preload: "metadata", style: "width:100%" }) as HTMLAudioElement;
+      const box = h("div.media.audio", s.thumb ? h("img", { src: api.media(s.thumb), alt: "" }) : null, a);
+      el.append(box);
+      // Exclusive tracks: the public preview, or the full track through signed /play links
+      const usePreview = () => {
+        if (s.teaser) {
+          a.src = api.media(s.teaser);
+          box.after(h("div.muted.small", { style: "margin-top:4px" }, `${s.teaser_seconds ?? 5}-second preview. The full track is only for GFC accounts.`));
+        } else clear(box, h("div.notice", "The preview isn't ready yet. Try again in a minute."));
+      };
+      if (s.exclusive) {
+        if (access === "login" || access === "verify") usePreview();
+        else playLinks(s).then((l) => {
+          if (!alive) return;
+          if (l) a.src = api.media(l.stream || l.full);
+          else show(s); // not allowed: preview and the unlock link
+        }).catch(usePreview);
+      } else a.src = api.media(s.stream || s.full);
       trackPlayer(a, s, true);
     } else if (kind === "other") {
       if (s.thumb) el.append(h("div.media", h("img", { src: api.media(s.thumb), alt: "" })));
