@@ -24,6 +24,18 @@ function linksFor(res: UploadResult) {
   return { text, url, x, linkedin: s?.linkedin ?? "", substack: s?.substack ?? "" };
 }
 
+/** Substack can't be pre-filled: the poster pastes this (text, then the link) into a new Note. */
+export function copyForSubstack(res: UploadResult): Promise<boolean> {
+  const l = linksFor(res);
+  return copyText(`${l.text}\n${l.url}`);
+}
+
+export function openSubstack(res: UploadResult): Promise<boolean> {
+  return openExternal(linksFor(res).substack || "https://substack.com/notes");
+}
+
+export const PASTE_KEYS = isAndroid ? "long-press and tap Paste" : "press Ctrl+V";
+
 export function availableTargets(res: UploadResult): ShareTarget[] {
   const l = linksFor(res);
   return SHARE_TARGETS.map((t) => t.id).filter((t) => !!l[t]);
@@ -81,8 +93,10 @@ ${l.url}`, baseUrl: api.baseUrl, teaser: clip, fileName: res.title || `GFC-${res
         : "Text copied: paste it into LinkedIn as the caption." });
     } else if (t === "substack" && wantsSubstack) {
       const ok = await openExternal(l.substack);
-      notes.push({ target: t, note: !ok ? "Couldn't open Substack."
-        : copied ? "Text and link copied: paste them into a new Substack Note." : "Opened Substack Notes." });
+      // Substack has no way to pre-fill a Note: it opens on the home page's empty Note box
+      notes.push({ target: t, note: !ok ? "Couldn't open Substack. Use Open Substack below."
+        : copied ? `Opened Substack. Click "What's on your mind?" at the top, ${PASTE_KEYS} to paste the text and link, then Post.`
+        : `Opened Substack. Click Copy for Substack below, then click "What's on your mind?" and ${PASTE_KEYS}.` });
     }
   }
   return notes;

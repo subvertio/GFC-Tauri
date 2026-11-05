@@ -9,7 +9,7 @@ import { registerScreen, back, go, askToVerify, type Route } from "../app";
 import { h, clear, toast, fmtBytes } from "../ui/dom";
 import { load3d } from "../lazy3d";
 import type { ModelView } from "../viewer3d";
-import { SHARE_TARGETS, availableTargets, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
+import { SHARE_TARGETS, PASTE_KEYS, availableTargets, copyForSubstack, openSubstack, saveTeaser, shareTo, type ShareTarget } from "../ui/share";
 import { celebrate, checkEarnings } from "../earnings";
 import { oneDriveMissing, oneDriveTip, isOneDriveError } from "../ui/onedrive";
 import { checkVideoSize, MAX_POST, MAX_ZIP, type BigVideoCheck } from "../ui/videosize";
@@ -311,7 +311,8 @@ registerScreen("post", (route, page) => {
     shareBtn.onclick = async () => {
       shareBtn.disabled = true;
       const done = await shareTo(res, targets);
-      clear(notes, done.map((n) => h("div", h("b", SHARE_TARGETS.find((x) => x.id === n.target)!.label + ": "), n.note)));
+      clear(notes, done.map((n) => h("div", h("b", SHARE_TARGETS.find((x) => x.id === n.target)!.label + ": "), n.note)),
+        targets.includes("substack") ? substackHelp(res) : null);
       shareBtn.disabled = false;
     };
     const wantsClip = clip && targets.some((t) => t !== "x");
@@ -328,6 +329,17 @@ registerScreen("post", (route, page) => {
       checkEarnings();
     }
   };
+
+  // Substack's Note box can't be filled for the poster: copy (again) and reopen, with the steps
+  const substackHelp = (res: UploadResult) => h("div.panel", { style: "margin-top:8px;padding:10px 12px" },
+    h("div", { style: "font-weight:700;margin-bottom:4px" }, "Posting on Substack"),
+    h("ol", { style: "margin:0 0 8px 18px;padding:0" },
+      h("li", `On Substack, click "What's on your mind?" at the top of the home page.`),
+      h("li", `${PASTE_KEYS[0].toUpperCase()}${PASTE_KEYS.slice(1)} to paste the text and link. The link turns into a preview card.`),
+      h("li", "Click Post.")),
+    h("div.row.wrap", { style: "gap:8px" },
+      h("button.btn.secondary.small", { onclick: async () => toast((await copyForSubstack(res)) ? "Copied. Paste it into your Substack Note." : "Couldn't copy.") }, "Copy for Substack"),
+      h("button.btn.secondary.small", { onclick: () => openSubstack(res) }, "Open Substack")));
 
   cancelBtn.onclick = () => invoke("cancel_upload", { uploadId }).catch(() => {});
   postBtn.onclick = headerPost.onclick = doPost;
