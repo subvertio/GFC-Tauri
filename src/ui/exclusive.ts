@@ -38,8 +38,8 @@ export async function playLinks(s: Seed): Promise<PlayLinks | null> {
   }
 }
 
-export function unlockText(kind: "text" | "video", access: Access): string {
-  const what = kind === "text" ? "read the full post" : "watch the full clip";
+export function unlockText(kind: "text" | "video" | "audio", access: Access): string {
+  const what = kind === "text" ? "read the full post" : kind === "audio" ? "hear the full track" : "watch the full clip";
   if (access === "login") return `Log in to ${what}`;
   if (access === "verify") return `Verify your phone to ${what}`;
   return "";
