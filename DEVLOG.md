@@ -120,7 +120,7 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
-## Unreleased (for 0.2.7): drag and drop to post
+## 0.2.7 (2026-11-21): Windows
 
 New: **Drag and drop**. Drop a file anywhere in the Windows app or the web app and New post opens
 with it attached, its name as the title. A drop on the post screen replaces the attached file.
@@ -137,6 +137,12 @@ never names a path. The web app uses HTML5 drop with File objects (`addWebFile`)
 Tested 2026-11-21: web build against a local test node (photo, silent video, 3D model, audio,
 zip, two files at once), and a real drag from File Explorer onto a Windows release build.
 PR subvertio/GFC-Tauri#13.
+
+Published 2026-11-21 ~10:15 Central, Windows only (Android stays 0.2.6). 3.3 MB zip, signed with
+the 2026-11-03 updater key, SHA-256
+`97048424056af0081d3b8def9f72dd4bc278f0d444c329e7ce6f3a32f84fb8db`. `check-downloads.ps1 -Windows
+0.2.7 -Android 0.2.6` passed, and the galacticfederation.tech home page buttons point at the node.
+0.2.5 and 0.2.6 installs update themselves.
 
 ## 0.2.6 (2026-11-05): Windows, Android and iPhone
 
