@@ -120,7 +120,7 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
-## Unreleased (for 0.2.7): drag and drop to post
+## 0.2.7 (2026-11-21): Windows
 
 New: **Drag and drop**. Drop a file anywhere in the Windows app or the web app and New post opens
 with it attached, its name as the title. A drop on the post screen replaces the attached file.
