@@ -349,3 +349,12 @@ button.follow:disabled { opacity: .6; }
 /* Connect another site */
 .connect-code { margin-top: 16px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 .connect-code .code { font: 700 30px/1.2 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .06em; user-select: all; }
+
+/* Drag and drop a file onto the app to post it (ui/drop.ts) */
+body.dropping::after {
+  content: "Drop it to post it: photo, video, audio, 3D model or any file";
+  position: fixed; inset: 12px; z-index: 1000; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center;
+  border: 3px dashed var(--accent-text); border-radius: 20px;
+  background: rgba(10, 12, 40, 0.82); color: var(--text); font-size: 20px; font-weight: 700;
+}

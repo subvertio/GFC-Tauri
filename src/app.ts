@@ -12,7 +12,9 @@ export type FeedSource = "foryou" | "following" | "explore" | "bookmarks" | "min
 export type Route =
   | { name: "feed"; src: FeedSource; q?: string; user?: string }
   | { name: "seed"; id: string; seed?: Seed }
-  | { name: "post"; text?: string; pick?: "media" | "file" }
+  | { name: "post"; text?: string; pick?: "media" | "file";
+      /** A file dragged onto the app (ui/drop.ts), already registered like a picked one */
+      dropped?: { id: string; name: string; size: number; mime: string; online_only?: boolean } }
   | { name: "batch" }
   | { name: "editprofile" }
   | { name: "promote"; seedId: string; seed?: Seed }

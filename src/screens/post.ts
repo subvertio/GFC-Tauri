@@ -13,6 +13,7 @@ import { SHARE_TARGETS, PASTE_KEYS, availableTargets, copyForSubstack, openSubst
 import { celebrate, checkEarnings } from "../earnings";
 import { oneDriveMissing, oneDriveTip, isOneDriveError } from "../ui/onedrive";
 import { checkVideoSize, MAX_POST, MAX_ZIP, type BigVideoCheck } from "../ui/videosize";
+import { onDrop } from "../ui/drop";
 
 export interface Picked {
   id: string; name: string; size: number; mime: string;
@@ -31,6 +32,11 @@ const isAudio = (p: Picked) => isAudioName(p.name);
 const isImage = (p: Picked) => p.mime.startsWith("image/");
 const isModel = (p: Picked) => ["glb", "gltf"].includes(ext(p.name));
 const isZipFile = (p: Picked) => ext(p.name) === "zip";
+// What the node counts as 3D (app_seeds.CONTENT_TYPE_MAP); the app previews .glb/.gltf
+const MODEL_EXT = ["glb", "gltf", "fbx", "obj", "usdz", "stl", "3ds"];
+/** What a picked or dropped file was detected as, for the media panel. */
+const kindLabel = (p: Picked) => isVideo(p) ? "Video" : isImage(p) ? "Photo" : MODEL_EXT.includes(ext(p.name)) ? "3D model"
+  : isAudio(p) ? "Audio" : isZipFile(p) ? "Download (.zip)" : ext(p.name) === "txt" ? "Text file" : "File";
 export const PREVIEW_LENGTHS = [5, 10, 30];
 // The preview (and its first-frame thumbnail) reads the clip into memory: less on phones
 export const VIDEO_PREVIEW_MAX = (isAndroid ? 40 : 120) * 1024 * 1024;
@@ -167,7 +173,7 @@ registerScreen("post", (route, page) => {
     dropMedia();
     picked = p;
     if (!title.value.trim() && !text.value.trim()) title.value = p.name.replace(/\.[^.]+$/, "");
-    const info = h("div.small", `${p.name} · ${fmtBytes(p.size)}`);
+    const info = h("div.small", h("b", kindLabel(p)), ` · ${p.name} · ${fmtBytes(p.size)}`);
     const prev = h("div");
     clear(mediaPanel, prev, h("div.row", { style: "margin-top:8px" }, h("div.grow", info),
       h("button.btn.secondary.small", { onclick: dropMedia }, "Remove")));
@@ -354,7 +360,8 @@ registerScreen("post", (route, page) => {
     h("div.page",
       h("label", "Title"), title,
       h("label", "Text"), text,
-      h("p.muted.small", "Add to your post (optional)."),
+      h("p.muted.small", isAndroid ? "Add to your post (optional)."
+        : "Add to your post (optional): drag a photo, video, audio, 3D model or any file onto the app, or choose one."),
       h("div.row.wrap",
         h("button.btn.secondary.small", { onclick: (ev: MouseEvent) => pick("media", ev.currentTarget as HTMLButtonElement) }, "⊕ Photo or video"),
         h("button.btn.secondary.small", { onclick: (ev: MouseEvent) => pick("file", ev.currentTarget as HTMLButtonElement) }, "✧ 3D model, audio or other file")),
@@ -371,10 +378,24 @@ registerScreen("post", (route, page) => {
     (window as unknown as Record<string, unknown>).__gfcTestAttach = async (path: string) =>
       usePicked(await invoke<Picked>("debug_pick_path", { path }));
   }
-  if (r.pick) setTimeout(() => pick(r.pick!), 50);
+  // Files dragged onto the app (ui/drop.ts): the one on the way in, then any dropped here
+  const takeDrop = async (p: Picked) => {
+    if (uploading) {
+      if (inTauri) invoke("forget_picked", { id: p.id }).catch(() => {});
+      return toast("Wait for the current upload to finish, or cancel it.");
+    }
+    await usePicked(p);
+    if (p.online_only && await oneDriveMissing([p.id])) mediaPanel.prepend(oneDriveTip());
+  };
+  const stopDrops = onDrop(takeDrop);
+  const arrived = r.dropped;
+  r.dropped = undefined;  // used once: going back to this screen later doesn't re-attach it
+  if (arrived) setTimeout(() => takeDrop(arrived), 0);
+  else if (r.pick) setTimeout(() => pick(r.pick!), 50);
   else setTimeout(() => (r.text ? text : title).focus());
 
   return () => {
+    stopDrops();
     model?.dispose();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   };

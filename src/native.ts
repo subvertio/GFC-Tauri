@@ -49,6 +49,13 @@ function pickFile(kind: string): Promise<WebPicked | null> {
   });
 }
 
+/** A file dropped on the page (web app): kept like a picked one, under a random id. */
+export function addWebFile(f: File): WebPicked {
+  const id = crypto.randomUUID();
+  files.set(id, f);
+  return { id, name: f.name, size: f.size, mime: f.type || "application/octet-stream" };
+}
+
 export function pickedFile(id: string): File | undefined {
   return files.get(id);
 }
