@@ -3,6 +3,7 @@ import { mountShell, start } from "./app";
 import { session, captureInvite } from "./session";
 import { afterLogin, watchEarnings } from "./earnings";
 import { startUpdateChecks } from "./update";
+import { installDrop } from "./ui/drop";
 import "./screens/feed";
 import "./screens/login";
 import "./screens/detail";
@@ -23,6 +24,7 @@ async function boot() {
   if (restored) afterLogin();
   startUpdateChecks();
   watchEarnings();
+  installDrop();  // drag a file anywhere to post it
   // The iPhone web app (npm run build:web): installable, and opens offline with the last version
   if (import.meta.env.MODE === "web" && "serviceWorker" in navigator) {
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});

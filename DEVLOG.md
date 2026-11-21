@@ -120,6 +120,24 @@ to this table and to `scripts/check-downloads.ps1`.
 
 ---
 
+## Unreleased (for 0.2.7): drag and drop to post
+
+New: **Drag and drop**. Drop a file anywhere in the Windows app or the web app and New post opens
+with it attached, its name as the title. A drop on the post screen replaces the attached file.
+The post screen names the kind it detected: Photo, Video, Audio, 3D model (.glb/.gltf, shown in
+the 3D viewer), Download (.zip), Text file or File. If several files are dropped, the first is
+attached and a note points to Batch upload. A full-window "Drop it to post it" highlight shows
+while dragging. Android doesn't get it (files aren't dragged onto apps there).
+
+How: Tauri's window DragDrop event gives the Rust side the paths (`files::Dropped`);
+`take_dropped` turns them into picked-file ids like the file picker does, so the webview still
+never names a path. The web app uses HTML5 drop with File objects (`addWebFile`). Code in
+`src/ui/drop.ts`, `files.rs`, `lib.rs` and `screens/post.ts`.
+
+Tested 2026-11-21: web build against a local test node (photo, silent video, 3D model, audio,
+zip, two files at once), and a real drag from File Explorer onto a Windows release build.
+PR subvertio/GFC-Tauri#13.
+
 ## 0.2.6 (2026-11-05): Windows, Android and iPhone
 
 New: **Exclusive audio**. "Exclusive to GFC Network" works for tracks (mp3, wav, ogg, flac, aac,

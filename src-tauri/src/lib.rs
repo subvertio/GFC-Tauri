@@ -20,7 +20,16 @@ pub fn run() {
         .plugin(secure_store::init())
         .plugin(native::init())
         .manage(files::Picked::default())
+        .manage(files::Dropped::default())
+        // Drag and drop (desktop): remember what was dropped for take_dropped
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                use tauri::Manager;
+                files::remember_drop(&window.state::<files::Dropped>(), paths);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            files::take_dropped,
             files::pick_file,
             files::pick_videos,
             files::make_available,

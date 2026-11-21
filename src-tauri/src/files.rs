@@ -283,7 +283,6 @@ pub async fn pick_file<R: Runtime>(app: AppHandle<R>, picked: State<'_, Picked>,
 /// Video types the node posts as videos (app_seeds.CONTENT_TYPE_MAP).
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "webm", "mkv", "m4v", "avi", "wmv", "flv"];
 /// The most videos one batch takes (a folder with more lists the first ones, by name).
-#[cfg_attr(target_os = "android", allow(dead_code))] // batch upload is desktop-only
 const MAX_BATCH: usize = 100;
 
 #[cfg_attr(target_os = "android", allow(dead_code))] // batch upload is desktop-only
@@ -355,6 +354,32 @@ fn videos_in(dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
     paths.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
     paths.truncate(MAX_BATCH);
     Ok(paths)
+}
+
+/// Files dropped on the window (desktop drag and drop). The window event (lib.rs) records the
+/// paths here; the webview then only asks for "what was just dropped", so it still never names
+/// a path itself.
+#[derive(Default)]
+pub struct Dropped(Mutex<Vec<PathBuf>>);
+
+pub fn remember_drop(dropped: &Dropped, paths: &[PathBuf]) {
+    *dropped.0.lock().unwrap() = paths.to_vec();
+}
+
+/// The files of the last drop (folders are skipped), registered like picked files. The
+/// webview's drop event can arrive just before the window event that records the paths, so
+/// this waits up to half a second for them.
+#[tauri::command]
+pub async fn take_dropped(picked: State<'_, Picked>, dropped: State<'_, Dropped>) -> Result<Vec<PickedFile>, String> {
+    let mut paths = Vec::new();
+    for _ in 0..20 {
+        paths = std::mem::take(&mut *dropped.0.lock().unwrap());
+        if !paths.is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    paths.into_iter().filter(|p| p.is_file()).take(MAX_BATCH).map(|p| picked_path(&picked, p)).collect()
 }
 
 fn picked_path(picked: &Picked, path: PathBuf) -> Result<PickedFile, String> {
