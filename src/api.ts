@@ -366,6 +366,11 @@ export class GfcApi {
   like(id: string) {
     return this.request<{ liked: boolean; like_count: number }>("POST", `/seeds/${encodeURIComponent(id)}/like`, { auth: "required" });
   }
+  /** Repost someone's post to your profile: credit and earnings go to the original creator. */
+  repost(id: string) {
+    return this.request<{ ok: boolean; id: string; repost_of: RepostOf | null; repost_credit_gfc: number }>(
+      "POST", `/seeds/${encodeURIComponent(id)}/repost`, { auth: "required" });
+  }
   bookmark(id: string) {
     return this.request<{ bookmarked: boolean }>("POST", `/seeds/${encodeURIComponent(id)}/bookmark`, { auth: "required" });
   }
