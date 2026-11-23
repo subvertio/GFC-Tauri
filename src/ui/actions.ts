@@ -2,7 +2,7 @@
 // sheet (report, block, edit, edit history, delete).
 
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, ApiError, inTauri, kindOf, titleFromBody, type Seed } from "../api";
+import { api, ApiError, inTauri, isAndroid, kindOf, titleFromBody, type Seed } from "../api";
 import { session } from "../session";
 import { go } from "../app";
 import { h, sheet, toast, confirmSheet, timeAgo, clear } from "./dom";
@@ -93,11 +93,79 @@ export async function shareLink(s: Seed) {
   if (await copyText(api.shareUrl(s.id))) toast("Link copied to the clipboard.");
 }
 
+/** Whose work this is: the original creator for a repost. */
+function creditOf(s: Seed) {
+  return { id: s.repost_of?.seed_id || s.id, owner: s.repost_of?.owner || s.owner };
+}
+
+/** Text and link for sharing a post elsewhere, crediting the original creator. */
+export function shareTextFor(s: Seed) {
+  const c = creditOf(s);
+  const title = s.title && !(kindOf(s) === "text" && s.title === titleFromBody(s.description || "")) ? s.title : "a post";
+  const preview = s.exclusive && !s.download ? " (free preview, the full post on GFC)" : "";
+  return { text: c.owner ? `${title} by @${c.owner} on GFC${preview}` : `${title} on GFC${preview}`, url: api.shareUrl(c.id) };
+}
+
 export async function shareOnX(s: Seed) {
-  const text = s.owner ? `${s.title || "a seed"} by ${s.owner} on GFC` : `${s.title || "a seed"} on GFC`;
-  const url = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(api.shareUrl(s.id))}`;
-  if (await openExternal(url)) toast("Opened X to share.");
-  else if (await copyText(api.shareUrl(s.id))) toast("Couldn't open X, so the link was copied instead.");
+  const { text, url } = shareTextFor(s);
+  if (await openExternal(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`)) toast("Opened X to share.");
+  else if (await copyText(url)) toast("Couldn't open X, so the link was copied instead.");
+}
+
+const PASTE_KEYS = isAndroid ? "long-press and tap Paste" : "press Ctrl+V";
+
+async function shareOn(target: "linkedin" | "substack", s: Seed) {
+  const { text, url } = shareTextFor(s);
+  if (target === "linkedin") {
+    // LinkedIn's share page takes only the link: the text goes to the clipboard for the caption
+    const copied = await copyText(text);
+    const ok = await openExternal("https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(url));
+    toast(!ok ? "Couldn't open LinkedIn." : copied ? "Opened LinkedIn. The text is copied: paste it as the caption." : "Opened LinkedIn.");
+  } else {
+    // Substack has no posting link: copy text + link, open Notes
+    const copied = await copyText(`${text}
+${url}`);
+    const ok = await openExternal("https://substack.com/notes");
+    toast(!ok ? "Couldn't open Substack." : copied
+      ? `Opened Substack. Click "What's on your mind?", ${PASTE_KEYS} to paste the text and link, then Post.` : "Opened Substack.");
+  }
+}
+
+/** Repost to your GFC profile: shown under your name, credit and GFC to the original creator. */
+export async function repostPost(s: Seed) {
+  if (!session.loggedIn) return toast("Log in to repost.");
+  const c = creditOf(s);
+  if (session.isMine(s) || (api.username && c.owner.toLowerCase() === api.username.toLowerCase()))
+    return toast("That's your own post: share it instead.");
+  if (!(await confirmSheet(`Repost to your profile?`,
+    `It shows on your profile and in your followers' feeds as "Repost of @${c.owner}". ` +
+    `@${c.owner} gets the credit and every GFC it earns.`, "Repost"))) return;
+  try {
+    const r = await api.repost(s.id);
+    toast(r.repost_credit_gfc ? `Reposted. @${c.owner} got ${r.repost_credit_gfc} GFC for it.` : `Reposted. Credit goes to @${c.owner}.`);
+  } catch (e) {
+    toast(String((e as Error).message), true);
+  }
+}
+
+/** The Share sheet: repost on GFC, X, LinkedIn, Substack, copy link. */
+export async function shareSheet(s: Seed) {
+  const c = creditOf(s);
+  const canRepost = !session.isMine(s) && !(api.username && c.owner.toLowerCase() === api.username.toLowerCase());
+  const choice = await sheet<string>((close) =>
+    h("div", h("h2", "Share"),
+      c.owner ? h("p.muted.small", `Credit goes to @${c.owner}, wherever it's shared.`) : null,
+      h("div.btns", { style: "margin-top:0" },
+        canRepost ? h("button.btn.block", { onclick: () => close("repost") }, "Repost on GFC") : null,
+        h("button.btn.secondary.block", { onclick: () => close("x") }, "Share on X"),
+        h("button.btn.secondary.block", { onclick: () => close("linkedin") }, "Share on LinkedIn"),
+        h("button.btn.secondary.block", { onclick: () => close("substack") }, "Share on Substack"),
+        h("button.btn.secondary.block", { onclick: () => close("copy") }, "Copy link"),
+        h("button.btn.secondary.block", { onclick: () => close() }, "Cancel"))));
+  if (choice === "repost") await repostPost(s);
+  else if (choice === "x") await shareOnX(s);
+  else if (choice === "linkedin" || choice === "substack") await shareOn(choice, s);
+  else if (choice === "copy" && (await copyText(shareTextFor(s).url))) toast("Link copied to the clipboard.");
 }
 
 const REASONS: [string, string][] = [

@@ -6,7 +6,7 @@ import { followButton, noteFollowing } from "./follow";
 import { session } from "../session";
 import { h, clear, timeAgo, fmtCount, toast } from "./dom";
 import { lazyModel } from "../lazy3d";
-import { moreMenu, toggleLike, toggleBookmark, shareLink, onSeedChange, seedChanged, editHistory } from "./actions";
+import { moreMenu, toggleLike, toggleBookmark, shareSheet, onSeedChange, seedChanged, editHistory } from "./actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "./exclusive";
 import { trackPlayer, pauseWhenOffscreen } from "./media";
 import { downloadBox } from "./download";
@@ -157,7 +157,7 @@ function actionRow(s: Seed, onComments: () => void = () => go({ name: "seed", id
     h("span.iconbtn", { title: "Views" }, "⊙", n(s.views)),
     h("span.iconbtn", { title: "GFC this post has earned its creator", class: s.gfc_earned > 0 ? "gold" : "" }, "¤", s.gfc_earned > 0 ? `${s.gfc_earned.toFixed(2)} GFC` : ""),
     h("button.iconbtn.mark", { class: s.bookmarked ? "on" : "", title: s.bookmarked ? "Remove bookmark" : "Bookmark", onclick: () => toggleBookmark(s) }, s.bookmarked ? "★" : "☆"),
-    h("button.iconbtn", { title: "Copy link", onclick: () => shareLink(s) }, "↗"));
+    h("button.iconbtn", { title: "Share or repost", onclick: () => shareSheet(s) }, "↗"));
 }
 
 function thumbImg(s: Seed, fallbackFull = false) {

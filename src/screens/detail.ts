@@ -7,7 +7,7 @@ import { session } from "../session";
 import { h, clear, timeAgo, fmtBytes, toast } from "../ui/dom";
 import { load3d } from "../lazy3d";
 import type { ModelView } from "../viewer3d";
-import { moreMenu, toggleLike, toggleBookmark, shareOnX, copyText, onSeedChange, seedChanged, editHistory, openExternal } from "../ui/actions";
+import { moreMenu, toggleLike, toggleBookmark, shareSheet, repostPost, onSeedChange, seedChanged, editHistory, openExternal } from "../ui/actions";
 import { exclusiveAccess, playLinks, unlockText, EXCLUSIVE_BADGE } from "../ui/exclusive";
 import { trackPlayer, trackVisible, reportPlayed } from "../ui/media";
 import { downloadBox } from "../ui/download";
@@ -49,8 +49,8 @@ registerScreen("seed", (route, page) => {
       clear(actions,
         h("button.btn.secondary.small", { class: s.liked ? "on" : "", style: s.liked ? "color:var(--like);border-color:var(--like)" : "", onclick: () => toggleLike(s) }, s.liked ? "♥ Liked" : "♡ Like"),
         h("button.btn.secondary.small", { onclick: () => toggleBookmark(s) }, s.bookmarked ? "★ Bookmarked" : "☆ Bookmark"),
-        h("button.btn.secondary.small", { onclick: () => shareOnX(s) }, "Share on X"),
-        h("button.btn.secondary.small", { onclick: async () => (await copyText(api.shareUrl(s.id))) && toast("Share link copied.") }, "Copy link"),
+        h("button.btn.secondary.small", { onclick: () => shareSheet(s) }, "↗ Share"),
+        !session.isMine(s) && session.loggedIn ? h("button.btn.secondary.small", { onclick: () => repostPost(s) }, "⟲ Repost") : null,
         kind === "other" && s.full && !s.download ? h("button.btn.secondary.small", { onclick: () => openExternal(api.media(s.full)) }, "Open the original file") : null);
     };
 
